@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>CodeNex</title>
+
+  <!-- Clean Meta -->
+  <meta name="description" content="CodeNex - Coding, Aptitude & Learning Platform" />
+  <meta name="author" content="Harshith Perumalla" />
+
+  <!-- Open Graph (for sharing links) -->
+  <meta property="og:title" content="CodeNex" />
+  <meta property="og:description" content="Modern coding and learning platform" />
+  <meta property="og:type" content="website" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- App Config -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" type="image/png" href="/codenex-logo.png" />
+  <script>
+    if (localStorage.getItem("theme") !== "light") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  </script>
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
