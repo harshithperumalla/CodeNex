@@ -51,9 +51,14 @@ const Login = () => {
         navigate("/dashboard");
       }
     } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || "Invalid email or password"
-      );
+      console.error("Login error:", err);
+      const errorMessage =
+        err?.response?.data?.message ||
+        (err?.message === "Network Error"
+          ? "Network Error: Could not connect to backend server."
+          : err?.message) ||
+        "Invalid email or password";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

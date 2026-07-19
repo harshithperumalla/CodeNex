@@ -71,9 +71,14 @@ const Signup = () => {
         navigate("/dashboard");
       }
     } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || "Signup failed"
-      );
+      console.error("Signup error:", err);
+      const errorMessage =
+        err?.response?.data?.message ||
+        (err?.message === "Network Error"
+          ? "Network Error: Could not connect to backend server."
+          : err?.message) ||
+        "Signup failed";
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
