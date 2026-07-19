@@ -225,6 +225,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    validateModifiedOnly: true,
   }
 );
 
@@ -242,8 +243,12 @@ userSchema.pre("save", async function () {
     return;
   }
 
+  if (!this.password) {
+    return;
+  }
+
   // Prevent double-hashing if the password is already a bcrypt hash
-  if (this.password && (this.password.startsWith("$2a$") || this.password.startsWith("$2b$") || this.password.startsWith("$2y$"))) {
+  if (this.password.startsWith("$2a$") || this.password.startsWith("$2b$") || this.password.startsWith("$2y$")) {
     return;
   }
 

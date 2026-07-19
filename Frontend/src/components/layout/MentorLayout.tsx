@@ -1,6 +1,8 @@
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import MentorSidebar from "./MentorSidebar";
+import NotificationBell from "../shared/NotificationBell";
+import ProfileDropdown from "./ProfileDropdown";
 import PageTransitionOverlay from "../shared/PageTransitionOverlay";
 import { useUser } from "@/contexts/UserContext";
 
@@ -18,7 +20,10 @@ const MentorLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role !== "mentor") {
+  if (user?.role !== "mentor") {
+    if (user?.role === "admin") {
+      return <Navigate to="/admin" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -31,6 +36,10 @@ const MentorLayout = () => {
         <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'linear-gradient(hsl(var(--secondary)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--secondary)) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
       </div>
       <MentorSidebar />
+      <div className="fixed top-4 right-4 lg:right-6 z-50 flex items-center gap-3">
+        <NotificationBell />
+        <ProfileDropdown />
+      </div>
       <main className="ml-[72px] lg:ml-[240px] min-h-screen p-4 lg:p-6 relative z-10">
         <AnimatePresence mode="wait">
           <motion.div

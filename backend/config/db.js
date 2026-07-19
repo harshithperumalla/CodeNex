@@ -17,27 +17,11 @@ const connectDB = async () => {
     await mongoose.connect(uri);
     console.log("✅ MongoDB Connected");
   } catch (err) {
-    console.error("❌ MongoDB Full Error:");
+    console.error("❌ MongoDB Connection Error:");
     console.error(err);
-
-    // If the initial URI was an Atlas SRV and DNS SRV lookup failed,
-    // try a local fallback before exiting so the dev server can still run.
-    if (uri !== defaultLocal) {
-      console.log("Attempting fallback to local MongoDB at", defaultLocal);
-      try {
-        await mongoose.connect(defaultLocal);
-        console.log("✅ MongoDB Connected (fallback local)");
-        return;
-      } catch (localErr) {
-        console.error("❌ Local fallback also failed:");
-        console.error(localErr);
-      }
-    }
-
     console.error("Could not connect to MongoDB. Check MONGODB_URI and network.");
-    console.warn("Continuing without MongoDB connection — some features may fail.");
-    // Do not exit process; allow the server to run in degraded mode for development.
-    return;
+    // Exit or propagate error so the developer is aware of connection issues
+    throw err;
   }
 };
 

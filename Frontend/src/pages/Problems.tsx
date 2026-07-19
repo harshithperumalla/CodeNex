@@ -95,9 +95,16 @@ const Problems = () => {
     try {
       const res = await api.get("/coding/problems");
       if (res.data.success && res.data.problems && res.data.problems.length > 0) {
-        setBackendProblems(res.data.problems);
+        const enriched = res.data.problems.map((p: any) => {
+          const staticP = problems.find((sp) => sp.id === p.id);
+          return {
+            ...p,
+            companies: staticP?.companies || p.companies || [],
+          };
+        });
+        setBackendProblems(enriched);
         if (persisted?.activeId) {
-          const p = res.data.problems.find((prob: any) => prob.id === persisted.activeId);
+          const p = enriched.find((prob: any) => prob.id === persisted.activeId);
           if (p) setActive(p);
         }
       } else {
@@ -214,7 +221,10 @@ const Problems = () => {
     if (q && !p.title.toLowerCase().includes(q) && !p.tags.some(t => t.toLowerCase().includes(q))) return false;
     if (diffFilters.size && !diffFilters.has(p.difficulty)) return false;
     if (tagFilters.size && !p.tags.some(t => tagFilters.has(t))) return false;
-    if (companyFilters.size && (!p.companies || !p.companies.some(c => companyFilters.has(c)))) return false;
+    if (companyFilters.size && (!p.companies || !p.companies.some(c => {
+      const cLower = c.toLowerCase();
+      return Array.from(companyFilters).some(cf => cf.toLowerCase() === cLower);
+    }))) return false;
     return true;
   }), [backendProblems, search, diffFilters, tagFilters, companyFilters]);
 

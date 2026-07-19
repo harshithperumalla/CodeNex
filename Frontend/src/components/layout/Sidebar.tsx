@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import {
   Home, BarChart3, Code2, Brain, MessageSquare,
-  BookOpen, Gamepad2, Video, Trophy, Award, Settings, Keyboard, Lightbulb, UserRound, Users
+  BookOpen, Gamepad2, Video, Trophy, Award, Settings, Keyboard, Lightbulb, UserRound, Users, Shield, GraduationCap
 } from "lucide-react";
 import { usePageTransition } from "@/contexts/PageTransitionContext";
+import { useUser } from "@/contexts/UserContext";
 
 const navItems = [
   { to: "/", icon: Home, label: "Home" },
@@ -35,8 +36,15 @@ const floatingLabelVariants = {
 
 const Sidebar = () => {
   const location = useLocation();
+  const { user } = useUser();
   const { triggerTransition, isTransitioning } = usePageTransition();
   const [activeLabel, setActiveLabel] = useState<string | null>(null);
+
+  const dynamicNavItems = [
+    ...navItems,
+    ...(user?.role === "admin" ? [{ to: "/admin", icon: Shield, label: "Admin Panel" }] : []),
+    ...(user?.role === "mentor" ? [{ to: "/mentor", icon: GraduationCap, label: "Mentor Panel" }] : []),
+  ];
 
   const handleClick = useCallback(
     (e: React.MouseEvent, to: string, label: string) => {
@@ -91,7 +99,7 @@ const Sidebar = () => {
       </div>
 
       <nav className="flex flex-col gap-1 flex-1 w-full px-2 lg:px-3">
-        {navItems.map((item) => {
+        {dynamicNavItems.map((item) => {
           const isActive = location.pathname === item.to;
           return (
             <a

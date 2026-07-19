@@ -167,6 +167,38 @@ function getResponse(input: string): string {
   return "🤖 I'm here to help with your learning journey!\n\n**Try asking about:**\n• \"Explain recursion\"\n• \"Tips for aptitude exams\"\n• \"Common English mistakes\"\n• \"Java collections\"\n• \"Dynamic programming\"\n• \"Interview communication tips\"\n\nOr ask any specific coding/aptitude/English question! 💡";
 }
 
+const getCurrentProblemContext = () => {
+  const data = localStorage.getItem("arena.currentProblem");
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+};
+
+function getOfflineFallback(input: string, activeProblem: any): string {
+  const lower = input.toLowerCase();
+  if (activeProblem) {
+    if (lower.includes("hint")) {
+      const hint = activeProblem.hints?.[0] || "Break the problem down into smaller subproblems. Think about the base cases first.";
+      return `💡 **AI Mentor Hint for "${activeProblem.title}":**\n\n${hint}\n\n*Try to trace the logic with a small input!*`;
+    }
+    if (lower.includes("explain") || lower.includes("dry run") || lower.includes("walkthrough")) {
+      const explanation = activeProblem.explanation || "Let's trace the execution on Example 1. Track the variables step-by-step to see how they evolve.";
+      return `🔄 **Explanation & Walkthrough for "${activeProblem.title}":**\n\n${explanation}`;
+    }
+    if (lower.includes("complexity") || lower.includes("big o") || lower.includes("time") || lower.includes("space")) {
+      return `⏱️ **Complexity Analysis for "${activeProblem.title}":**\n\nFor this problem, the optimal targets are:\n• **Time Complexity:** O(N) linear time\n• **Space Complexity:** O(N) or O(1) auxiliary space\n\nCan you think of a way to achieve this using a Hash Map or Two Pointers?`;
+    }
+    if (lower.includes("solution") || lower.includes("code") || lower.includes("reveal")) {
+      const sol = activeProblem.solutions?.javascript || activeProblem.starterCode?.javascript || "// Solution under construction.";
+      return `🔑 **Reference Solution for "${activeProblem.title}":**\n\nHere is the Javascript implementation:\n\`\`\`javascript\n${sol}\n\`\`\``;
+    }
+  }
+  return getResponse(input);
+}
+
 const AIChatButton = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -188,20 +220,50 @@ const AIChatButton = () => {
     setLoading(true);
 
     try {
-      const history = [...messages, userMsg];
-      const res = await api.post("/chatbot/chat", { messages: history });
+      const activeProblem = getCurrentProblemContext();
+      let historyToSend = [...messages, userMsg];
+
+      if (activeProblem) {
+        // Prepend context to help Gemini understand the problem
+        const contextMsg = {
+          role: "user" as const,
+          content: `SYSTEM INSTRUCTION: You are an encouraging AI Coding Mentor on CodeNex. The user is currently viewing the problem: "${activeProblem.title}" (Difficulty: ${activeProblem.difficulty}).\nDescription: ${activeProblem.description}\nConstraints: ${activeProblem.constraints?.join(", ") || "None"}\nExamples: ${JSON.stringify(activeProblem.examples || [])}\nTarget Complexity: ${activeProblem.timeComplexity || "optimized"}.\n\nRules:\n1. The user might ask for hints, explanations, complexity analysis, dry runs, debugging guidance, or concepts.\n2. Do NOT reveal the full solution code unless the user explicitly requests it.\n3. Keep responses structured and educational.`
+        };
+        const ackMsg = {
+          role: "assistant" as const,
+          content: `Understood! I am now acting as the AI Mentor for the problem "${activeProblem.title}". I will provide hints, explanations, complexities, dry runs, and guidance without revealing the full solution code unless explicitly requested.`
+        };
+        historyToSend = [contextMsg, ackMsg, ...historyToSend];
+      }
+
+      const res = await api.post("/chatbot/chat", { messages: historyToSend });
       if (res.data && res.data.success) {
         setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
       } else {
-        setMessages(prev => [...prev, { role: "assistant", content: "🤖 Sorry, I encountered an issue. Let's try again!" }]);
+        const reply = getOfflineFallback(text, activeProblem);
+        setMessages(prev => [...prev, { role: "assistant", content: reply }]);
       }
     } catch (err) {
       console.error("AI chat error:", err);
-      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Failed to connect to AI Mentor. Please check your connection." }]);
+      const activeProblem = getCurrentProblemContext();
+      const reply = getOfflineFallback(text, activeProblem);
+      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent;
+      setOpen(true);
+      if (custom.detail?.prompt) {
+        send(custom.detail.prompt);
+      }
+    };
+    window.addEventListener("open-ai-mentor", handler);
+    return () => window.removeEventListener("open-ai-mentor", handler);
+  }, [messages, loading]);
 
   return (
     <>
@@ -283,15 +345,38 @@ const AIChatButton = () => {
             {/* Quick Replies */}
             {messages.length <= 2 && (
               <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-                {quickReplies.map(qr => (
-                  <button
-                    key={qr}
-                    onClick={() => send(qr)}
-                    className="text-[11px] px-2.5 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
-                  >
-                    {qr}
-                  </button>
-                ))}
+                {getCurrentProblemContext() ? (
+                  <>
+                    <button
+                      onClick={() => send("Give me a hint")}
+                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20 hover:border-yellow-500/50 transition-colors cursor-pointer"
+                    >
+                      💡 Get a Hint
+                    </button>
+                    <button
+                      onClick={() => send("Explain the dry run walkthrough")}
+                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 transition-colors cursor-pointer"
+                    >
+                      🔄 Dry Run
+                    </button>
+                    <button
+                      onClick={() => send("What is the optimal complexity?")}
+                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors cursor-pointer"
+                    >
+                      ⏱️ Complexity
+                    </button>
+                  </>
+                ) : (
+                  quickReplies.map(qr => (
+                    <button
+                      key={qr}
+                      onClick={() => send(qr)}
+                      className="text-[11px] px-2.5 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors cursor-pointer"
+                    >
+                      {qr}
+                    </button>
+                  ))
+                )}
               </div>
             )}
 

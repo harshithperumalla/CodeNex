@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { User, Settings, Award, LogOut, Camera } from "lucide-react";
+import { User, Settings, Award, LogOut, Camera, Shield, GraduationCap } from "lucide-react";
 import ProfilePictureDialog from "@/components/shared/ProfilePictureDialog";
 
 const ProfileDropdown = () => {
@@ -40,6 +40,16 @@ const ProfileDropdown = () => {
             <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
           <DropdownMenuSeparator />
+          {user.role === "admin" && (
+            <DropdownMenuItem onClick={() => navigate("/admin")}>
+              <Shield className="w-4 h-4 mr-2" /> Admin Panel
+            </DropdownMenuItem>
+          )}
+          {user.role === "mentor" && (
+            <DropdownMenuItem onClick={() => navigate("/mentor")}>
+              <GraduationCap className="w-4 h-4 mr-2" /> Mentor Panel
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => navigate("/profile")}>
             <User className="w-4 h-4 mr-2" /> Profile
           </DropdownMenuItem>

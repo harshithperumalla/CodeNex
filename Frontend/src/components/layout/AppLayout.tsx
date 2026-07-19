@@ -15,10 +15,18 @@ const pageVariants = {
 
 const AppLayout = () => {
   const location = useLocation();
-  const { isAuthenticated } = useUser();
+  const { user, isAuthenticated } = useUser();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (user?.role === "mentor") {
+    return <Navigate to="/mentor" replace />;
   }
 
   return (

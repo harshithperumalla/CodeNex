@@ -8,6 +8,7 @@ import { PageTransitionProvider } from "@/contexts/PageTransitionContext";
 import { ToastProvider, ToastContainer } from "@/components/toast";
 import AppLayout from "@/components/layout/AppLayout";
 import AdminLayout from "@/components/layout/AdminLayout";
+import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Problems from "./pages/Problems";
@@ -60,14 +61,14 @@ const App = () => (
           <UserProvider>
           <PageTransitionProvider>
           <Routes>
-          {/* Auth routes */}
+          {/* Public routes */}
+          <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password/:token" element={<ResetPassword />} />
 
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/coding" element={<Problems />} />
             <Route path="/coding/:id" element={<CodingWorkspace />} />
@@ -97,6 +98,7 @@ const App = () => (
             <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
             <Route path="/admin/reviews" element={<Reviews />} />
             <Route path="/admin/suggestions" element={<Suggestions />} />
+            <Route path="/admin/settings" element={<Settings />} />
           </Route>
           <Route element={<MentorLayout />}>
             <Route path="/mentor" element={<MentorDashboard />} />
@@ -104,6 +106,7 @@ const App = () => (
             <Route path="/mentor/sessions" element={<SessionScheduling />} />
             <Route path="/mentor/progress" element={<StudentProgress />} />
             <Route path="/mentor/profile" element={<MentorProfile />} />
+            <Route path="/mentor/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

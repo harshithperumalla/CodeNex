@@ -54,6 +54,7 @@ const runJavaScript = (code, testCases, problemId) => {
   };
 
   for (const testCase of testCases) {
+    const startTime = process.hrtime();
     try {
       // Define ListNode inside the VM sandbox so user can instantiate it
       const sandbox = {
@@ -89,11 +90,14 @@ const runJavaScript = (code, testCases, problemId) => {
       const fn = sandbox.module.exports;
 
       if (typeof fn !== "function") {
+        const elapsed = process.hrtime(startTime);
+        const timeSec = elapsed[0] + elapsed[1] / 1e9;
         results.push({
           input: testCase.input,
           expected: testCase.expectedOutput,
           actual: "No solution function found in code",
           passed: false,
+          time: timeSec,
         });
         continue;
       }
@@ -137,18 +141,24 @@ const runJavaScript = (code, testCases, problemId) => {
       const ok = normalizeOutput(actualStr) === normalizeOutput(testCase.expectedOutput);
 
       if (ok) passed += 1;
+      const elapsed = process.hrtime(startTime);
+      const timeSec = elapsed[0] + elapsed[1] / 1e9;
       results.push({
         input: testCase.input,
         expected: testCase.expectedOutput,
         actual: actualStr,
         passed: ok,
+        time: timeSec,
       });
     } catch (err) {
+      const elapsed = process.hrtime(startTime);
+      const timeSec = elapsed[0] + elapsed[1] / 1e9;
       results.push({
         input: testCase.input,
         expected: testCase.expectedOutput,
         actual: err.message,
         passed: false,
+        time: timeSec,
       });
     }
   }
@@ -722,11 +732,52 @@ const extractPyFuncName = (code) => {
   return match ? match[1] : null;
 };
 
-const getJavaScriptWrapper = (code, problemId, tags = []) => {
+const extractCppFuncName = (code) => {
+  const cleanCode = code.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "");
+  const matches = [...cleanCode.matchAll(/([\w<>*&]+)\s+(\w+)\s*\(/g)];
+  for (const m of matches) {
+    const name = m[2];
+    if (!["if", "while", "for", "switch", "return", "class", "struct", "public", "private", "protected", "using", "std"].includes(name)) {
+      return name;
+    }
+  }
+  return null;
+};
+
+const getTargetFuncName = (problem, language) => {
+  const starter = problem?.starterCode?.[language] || "";
+  if (!starter) return null;
+  const clean = starter.replace(/\/\/.*|\/\*[\s\S]*?\*\//g, "");
+  
+  if (language === "javascript") {
+    return extractJSFuncName(clean);
+  }
+  if (language === "python") {
+    return extractPyFuncName(clean);
+  }
+  if (language === "cpp" || language === "c++") {
+    return extractCppFuncName(clean);
+  }
+  if (language === "java") {
+    const matches = [...clean.matchAll(/(?:public|protected|private|static|\s) +[\w<>\[\]]+ +(\w+) *\(/g)];
+    for (const m of matches) {
+      const name = m[1];
+      if (!["if", "while", "for", "switch", "return", "class", "Solution"].includes(name)) {
+        return name;
+      }
+    }
+  }
+  return null;
+};
+
+const sanitizeJavaCode = (code) => {
+  return code.replace(/\bpublic\s+class\s+Solution\b/g, "class Solution");
+};
+
+const getJavaScriptWrapper = (code, problemId, tags = [], funcName = "solve") => {
   if (problemId >= 1 && problemId <= 10) {
     return getJavaScriptWrapperOld(code, problemId);
   }
-  const funcName = extractJSFuncName(code) || "solve";
   const isLinkedList = tags && tags.some(t => t.toLowerCase().includes("linked list"));
 
   let wrapper = `${code}\n\n`;
@@ -799,11 +850,10 @@ if (lines.length > 0) {
   return wrapper;
 };
 
-const getPythonWrapper = (code, problemId, tags = []) => {
+const getPythonWrapper = (code, problemId, tags = [], funcName = "solve") => {
   if (problemId >= 1 && problemId <= 10) {
     return getPythonWrapperOld(code, problemId);
   }
-  const funcName = extractPyFuncName(code) || "solve";
   const isLinkedList = tags && tags.some(t => t.toLowerCase().includes("linked list"));
 
   let wrapper = `${code}\n\n`;
@@ -844,7 +894,7 @@ if __name__ == "__main__":
             try:
                 args.append(json.loads(line))
             except:
-                if line.startswith('"') and line.endsWith('"'):
+                if line.startsWith('"') and line.endsWith('"'):
                     args.append(line[1:-1])
                 else:
                     args.append(line)
@@ -853,24 +903,42 @@ if __name__ == "__main__":
   if (isLinkedList) {
     wrapper += `
         args = [build_list(arg) if isinstance(arg, list) else arg for arg in args]
-        res = ${funcName}(*args)
+        if 'Solution' in globals() or 'Solution' in locals():
+            solver = Solution()
+            method = getattr(solver, "${funcName}", None)
+            if method:
+                res = method(*args)
+            else:
+                res = globals()["${funcName}"](*args)
+        else:
+            res = globals()["${funcName}"](*args)
+            
         if hasattr(res, 'val') or res is None:
             res = list_to_arr(res)
         print(json.dumps(res))
 `;
   } else {
     wrapper += `
-        res = ${funcName}(*args)
+        if 'Solution' in globals() or 'Solution' in locals():
+            solver = Solution()
+            method = getattr(solver, "${funcName}", None)
+            if method:
+                res = method(*args)
+            else:
+                res = globals()["${funcName}"](*args)
+        else:
+            res = globals()["${funcName}"](*args)
         print(json.dumps(res))
 `;
   }
   return wrapper;
 };
 
-const getJavaWrapper = (code, problemId, tags = []) => {
+const getJavaWrapper = (code, problemId, tags = [], funcName = "solve") => {
   if (problemId >= 1 && problemId <= 10) {
     return getJavaWrapperOld(code, problemId);
   }
+  const cleanCode = sanitizeJavaCode(code);
   const isLinkedList = tags && tags.some(t => t.toLowerCase().includes("linked list"));
 
   let wrapper = `
@@ -878,7 +946,7 @@ import java.util.*;
 import java.io.*;
 import java.lang.reflect.*;
 
-${code}
+${cleanCode}
 `;
 
   if (isLinkedList) {
@@ -1005,10 +1073,20 @@ public class Main {
 
         Solution solver = new Solution();
         Method targetMethod = null;
-        for (Method m : Solution.class.getDeclaredMethods()) {
-            if (Modifier.isPublic(m.getModifiers())) {
-                targetMethod = m;
-                break;
+        try {
+            for (Method m : Solution.class.getDeclaredMethods()) {
+                if (m.getName().equals("${funcName}") && Modifier.isPublic(m.getModifiers())) {
+                    targetMethod = m;
+                    break;
+                }
+            }
+        } catch (Exception e) {}
+        if (targetMethod == null) {
+            for (Method m : Solution.class.getDeclaredMethods()) {
+                if (Modifier.isPublic(m.getModifiers())) {
+                    targetMethod = m;
+                    break;
+                }
             }
         }
         if (targetMethod == null) {
@@ -1054,7 +1132,7 @@ public class Main {
   return wrapper;
 };
 
-const getCppWrapper = (code, problemId, tags = []) => {
+const getCppWrapper = (code, problemId, tags = [], funcName = "solve") => {
   if (problemId >= 1 && problemId <= 10) {
     return getCppWrapperOld(code, problemId);
   }
@@ -1085,6 +1163,7 @@ struct ListNode {
 ${code}
 
 vector<int> parseVector(string s) {
+    if (s.empty()) return {};
     if (s.front() == '[') s = s.substr(1);
     if (s.back() == ']') s = s.substr(0, s.length() - 1);
     stringstream ss(s);
@@ -1094,6 +1173,45 @@ vector<int> parseVector(string s) {
         if (!item.empty()) res.push_back(stoi(item));
     }
     return res;
+}
+
+template <typename T>
+void printVal(const T& val) {
+    cout << val;
+}
+void printVal(const string& val) {
+    cout << "\\"" << val << "\\"";
+}
+
+template <typename T>
+void printResult(const T& val) {
+    printVal(val);
+    cout << endl;
+}
+
+template <typename T>
+void printResult(const vector<T>& vec) {
+    cout << "[";
+    for (size_t i = 0; i < vec.size(); i++) {
+        printVal(vec[i]);
+        if (i < vec.size() - 1) cout << ",";
+    }
+    cout << "]" << endl;
+}
+
+template <typename T>
+void printResult(const vector<vector<T>>& grid) {
+    cout << "[";
+    for (size_t i = 0; i < grid.size(); i++) {
+        cout << "[";
+        for (size_t j = 0; j < grid[i].size(); j++) {
+            printVal(grid[i][j]);
+            if (j < grid[i].size() - 1) cout << ",";
+        }
+        cout << "]";
+        if (i < grid.size() - 1) cout << ",";
+    }
+    cout << "]" << endl;
 }
 `;
 
@@ -1124,6 +1242,7 @@ void printList(ListNode* head) {
 
   wrapper += `
 int main() {
+    cout << boolalpha;
     string line1, line2;
     if (!getline(cin, line1)) return 0;
     Solution solver;
@@ -1134,9 +1253,9 @@ int main() {
     ListNode* l1 = buildList(parseVector(line1));
     if (getline(cin, line2)) {
         ListNode* l2 = buildList(parseVector(line2));
-        printList(solver.solve(l1, l2));
+        printList(solver.${funcName}(l1, l2));
     } else {
-        printList(solver.solve(l1));
+        printList(solver.${funcName}(l1));
     }
 `;
   } else {
@@ -1145,22 +1264,25 @@ int main() {
         if (line1.front() == '[') {
             vector<int> nums = parseVector(line1);
             if (getline(cin, line2)) {
-                int target = stoi(line2);
-                auto res = solver.solve(nums, target);
-                cout << res << endl;
+                if (line2.front() == '[') {
+                    vector<int> target = parseVector(line2);
+                    printResult(solver.${funcName}(nums, target));
+                } else {
+                    int target = stoi(line2);
+                    printResult(solver.${funcName}(nums, target));
+                }
             } else {
-                auto res = solver.solve(nums);
-                cout << res << endl;
+                printResult(solver.${funcName}(nums));
             }
         } else {
             try {
                 int val = stoi(line1);
-                cout << solver.solve(val) << endl;
+                printResult(solver.${funcName}(val));
             } catch (...) {
                 if (line1.front() == '"' && line1.back() == '"') {
                     line1 = line1.substr(1, line1.length() - 2);
                 }
-                cout << solver.solve(line1) << endl;
+                printResult(solver.${funcName}(line1));
             }
         }
     } catch (...) {
@@ -1223,7 +1345,7 @@ int main() {
   return wrapper;
 };
 
-const runWithJudge0 = async (code, language, testCases, problemId, tags = []) => {
+const runWithJudge0 = async (code, language, testCases, problemId, tags = [], funcName = "solve") => {
   const lang = language.toLowerCase();
   const langId = judge0Languages[lang];
   if (!langId) {
@@ -1236,13 +1358,13 @@ const runWithJudge0 = async (code, language, testCases, problemId, tags = []) =>
   for (const testCase of testCases) {
     let wrappedCode = code;
     if (lang === "javascript") {
-      wrappedCode = getJavaScriptWrapper(code, problemId, tags);
+      wrappedCode = getJavaScriptWrapper(code, problemId, tags, funcName);
     } else if (lang === "python") {
-      wrappedCode = getPythonWrapper(code, problemId, tags);
+      wrappedCode = getPythonWrapper(code, problemId, tags, funcName);
     } else if (lang === "java") {
-      wrappedCode = getJavaWrapper(code, problemId, tags);
+      wrappedCode = getJavaWrapper(code, problemId, tags, funcName);
     } else if (lang === "cpp" || lang === "c++") {
-      wrappedCode = getCppWrapper(code, problemId, tags);
+      wrappedCode = getCppWrapper(code, problemId, tags, funcName);
     } else if (lang === "c") {
       wrappedCode = getCWrapper(code, problemId);
     }
@@ -1261,17 +1383,20 @@ const runWithJudge0 = async (code, language, testCases, problemId, tags = []) =>
     );
 
     const run = response.data;
+    const runTime = run.time ? parseFloat(run.time) : null;
+
     if (run.status.id === 6) {
       // Compilation error
       const errMsg = run.compile_output || "Compile failed";
       return {
         passed: 0,
         total: testCases.length,
-        results: testCases.map(() => ({
-          input: testCase.input,
-          expected: testCase.expectedOutput,
+        results: testCases.map((tc) => ({
+          input: tc.input,
+          expected: tc.expectedOutput,
           actual: `Compilation Error:\n${errMsg}`,
           passed: false,
+          time: 0,
         })),
       };
     }
@@ -1282,6 +1407,7 @@ const runWithJudge0 = async (code, language, testCases, problemId, tags = []) =>
         expected: testCase.expectedOutput,
         actual: `Runtime Error:\n${run.stderr || run.compile_output || run.status.description}`,
         passed: false,
+        time: runTime,
       });
       continue;
     }
@@ -1295,6 +1421,7 @@ const runWithJudge0 = async (code, language, testCases, problemId, tags = []) =>
       expected: testCase.expectedOutput,
       actual: actualVal,
       passed: ok,
+      time: runTime,
     });
   }
 
@@ -1304,16 +1431,23 @@ const runWithJudge0 = async (code, language, testCases, problemId, tags = []) =>
 // Global executeCode function that orchestrates everything
 const executeCode = async (code, language, testCases, problemId) => {
   let tags = [];
+  let problem = null;
   try {
     const Problem = require("../models/Problem");
-    const problem = await Problem.findOne({ problemId });
+    problem = await Problem.findOne({ problemId });
     if (problem) tags = problem.tags || [];
   } catch (e) {
     console.warn("Failed to load problem tags dynamically inside executeCode:", e.message);
   }
 
+  const targetLang = language.toLowerCase();
+  const funcName = getTargetFuncName(problem, targetLang) || 
+                   (targetLang === "python" ? extractPyFuncName(code) : 
+                    targetLang === "cpp" || targetLang === "c++" ? extractCppFuncName(code) : 
+                    extractJSFuncName(code)) || "solve";
+
   try {
-    return await runWithJudge0(code, language, testCases, problemId, tags);
+    return await runWithJudge0(code, language, testCases, problemId, tags, funcName);
   } catch (err) {
     console.warn(`⚠️ Judge0 CE API failed, running locally: ${err.message}`);
   }
@@ -1334,7 +1468,7 @@ const executeCode = async (code, language, testCases, problemId) => {
   let passed = 0;
 
   if (lang === "python") {
-    const pyCode = getPythonWrapper(code, problemId, tags);
+    const pyCode = getPythonWrapper(code, problemId, tags, funcName);
     const filename = `temp_${Date.now()}_${Math.floor(Math.random() * 1000)}.py`;
     const filepath = path.join(tempDir, filename);
     fs.writeFileSync(filepath, pyCode);
@@ -1351,11 +1485,14 @@ const executeCode = async (code, language, testCases, problemId) => {
 
     for (const testCase of testCases) {
       try {
+        const startTime = process.hrtime();
         const runProcess = spawnSync(pyCommand, [filepath], {
           input: testCase.input,
           encoding: "utf-8",
           timeout: 4000,
         });
+        const elapsed = process.hrtime(startTime);
+        const timeSec = elapsed[0] + elapsed[1] / 1e9;
 
         if (runProcess.error) {
           results.push({
@@ -1363,6 +1500,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Execution error: ${runProcess.error.message}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1373,6 +1511,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Runtime error:\n${runProcess.stderr || "Exit code " + runProcess.status}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1386,6 +1525,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: actualVal,
           passed: ok,
+          time: timeSec,
         });
       } catch (err) {
         results.push({
@@ -1393,6 +1533,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: `Error: ${err.message}`,
           passed: false,
+          time: 0,
         });
       }
     }
@@ -1401,7 +1542,7 @@ const executeCode = async (code, language, testCases, problemId) => {
     try { fs.unlinkSync(filepath); } catch (e) {}
   } 
   else if (lang === "java") {
-    const javaCode = getJavaWrapper(code, problemId, tags);
+    const javaCode = getJavaWrapper(code, problemId, tags, funcName);
     // Java needs file named Main.java
     const runId = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const mainDir = path.join(tempDir, `java_${runId}`);
@@ -1423,6 +1564,7 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: testCases[0]?.expectedOutput || "",
         actual: `Compilation failed: javac compiler not found on system path.`,
         passed: false,
+        time: 0,
       });
       // Clean up directory
       try { fs.rmSync(mainDir, { recursive: true, force: true }); } catch (e) {}
@@ -1431,6 +1573,7 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: "",
         actual: "Java compiler (javac) not installed.",
         passed: false,
+        time: 0,
       })};
     }
 
@@ -1443,18 +1586,22 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: "",
         actual: `Compilation Error:\n${compileErr}`,
         passed: false,
+        time: 0,
       })};
     }
 
     // Run test cases
     for (const testCase of testCases) {
       try {
+        const startTime = process.hrtime();
         const runProcess = spawnSync("java", ["Main"], {
           cwd: mainDir,
           input: testCase.input,
           encoding: "utf-8",
           timeout: 4000,
         });
+        const elapsed = process.hrtime(startTime);
+        const timeSec = elapsed[0] + elapsed[1] / 1e9;
 
         if (runProcess.error) {
           results.push({
@@ -1462,6 +1609,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Execution error: ${runProcess.error.message}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1472,6 +1620,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Runtime error:\n${runProcess.stderr || "Exit code " + runProcess.status}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1485,6 +1634,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: actualVal,
           passed: ok,
+          time: timeSec,
         });
       } catch (err) {
         results.push({
@@ -1492,6 +1642,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: `Error: ${err.message}`,
           passed: false,
+          time: 0,
         });
       }
     }
@@ -1500,7 +1651,7 @@ const executeCode = async (code, language, testCases, problemId) => {
     try { fs.rmSync(mainDir, { recursive: true, force: true }); } catch (e) {}
   } 
   else if (lang === "cpp" || lang === "c++") {
-    const cppCode = getCppWrapper(code, problemId, tags);
+    const cppCode = getCppWrapper(code, problemId, tags, funcName);
     const runId = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const filename = `temp_${runId}.cpp`;
     const exename = `temp_${runId}.exe`;
@@ -1522,6 +1673,7 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: testCases[0]?.expectedOutput || "",
         actual: `Compilation failed: g++ compiler not found on system path.`,
         passed: false,
+        time: 0,
       });
       try { fs.unlinkSync(filepath); } catch (e) {}
       return { passed: 0, total: testCases.length, results: Array(testCases.length).fill({
@@ -1529,6 +1681,7 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: "",
         actual: "g++ compiler not installed on system path.",
         passed: false,
+        time: 0,
       })};
     }
 
@@ -1540,17 +1693,21 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: "",
         actual: `Compilation Error:\n${compileErr}`,
         passed: false,
+        time: 0,
       })};
     }
 
     // Run test cases
     for (const testCase of testCases) {
       try {
+        const startTime = process.hrtime();
         const runProcess = spawnSync(exepath, [], {
           input: testCase.input,
           encoding: "utf-8",
           timeout: 4000,
         });
+        const elapsed = process.hrtime(startTime);
+        const timeSec = elapsed[0] + elapsed[1] / 1e9;
 
         if (runProcess.error) {
           results.push({
@@ -1558,6 +1715,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Execution error: ${runProcess.error.message}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1568,6 +1726,7 @@ const executeCode = async (code, language, testCases, problemId) => {
             expected: testCase.expectedOutput,
             actual: `Runtime error:\n${runProcess.stderr || "Exit code " + runProcess.status}`,
             passed: false,
+            time: timeSec,
           });
           continue;
         }
@@ -1581,6 +1740,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: actualVal,
           passed: ok,
+          time: timeSec,
         });
       } catch (err) {
         results.push({
@@ -1588,6 +1748,7 @@ const executeCode = async (code, language, testCases, problemId) => {
           expected: testCase.expectedOutput,
           actual: `Error: ${err.message}`,
           passed: false,
+          time: 0,
         });
       }
     }
@@ -1596,6 +1757,113 @@ const executeCode = async (code, language, testCases, problemId) => {
     try { fs.unlinkSync(filepath); } catch (e) {}
     try { fs.unlinkSync(exepath); } catch (e) {}
   } 
+  else if (lang === "c") {
+    const cCode = getCWrapper(code, problemId);
+    const runId = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const filename = `temp_${runId}.c`;
+    const exename = `temp_${runId}.exe`;
+    const filepath = path.join(tempDir, filename);
+    const exepath = path.join(tempDir, exename);
+    
+    fs.writeFileSync(filepath, cCode);
+
+    // Compile
+    const compile = spawnSync("gcc", [filename, "-o", exename], {
+      cwd: tempDir,
+      encoding: "utf-8",
+      timeout: 10000,
+    });
+
+    if (compile.error) {
+      results.push({
+        input: testCases[0]?.input || "",
+        expected: testCases[0]?.expectedOutput || "",
+        actual: `Compilation failed: gcc compiler not found on system path.`,
+        passed: false,
+        time: 0,
+      });
+      try { fs.unlinkSync(filepath); } catch (e) {}
+      return { passed: 0, total: testCases.length, results: Array(testCases.length).fill({
+        input: "Compilation failed",
+        expected: "",
+        actual: "gcc compiler not installed on system path.",
+        passed: false,
+        time: 0,
+      })};
+    }
+
+    if (compile.status !== 0) {
+      const compileErr = compile.stderr || "Compilation failed";
+      try { fs.unlinkSync(filepath); } catch (e) {}
+      return { passed: 0, total: testCases.length, results: Array(testCases.length).fill({
+        input: "Compilation failed",
+        expected: "",
+        actual: `Compilation Error:\n${compileErr}`,
+        passed: false,
+        time: 0,
+      })};
+    }
+
+    // Run test cases
+    for (const testCase of testCases) {
+      try {
+        const startTime = process.hrtime();
+        const runProcess = spawnSync(exepath, [], {
+          input: testCase.input,
+          encoding: "utf-8",
+          timeout: 4000,
+        });
+        const elapsed = process.hrtime(startTime);
+        const timeSec = elapsed[0] + elapsed[1] / 1e9;
+
+        if (runProcess.error) {
+          results.push({
+            input: testCase.input,
+            expected: testCase.expectedOutput,
+            actual: `Execution error: ${runProcess.error.message}`,
+            passed: false,
+            time: timeSec,
+          });
+          continue;
+        }
+
+        if (runProcess.status !== 0) {
+          results.push({
+            input: testCase.input,
+            expected: testCase.expectedOutput,
+            actual: `Runtime error:\n${runProcess.stderr || "Exit code " + runProcess.status}`,
+            passed: false,
+            time: timeSec,
+          });
+          continue;
+        }
+
+        const actualVal = runProcess.stdout.trim();
+        const ok = normalizeOutput(actualVal) === normalizeOutput(testCase.expectedOutput);
+        if (ok) passed += 1;
+
+        results.push({
+          input: testCase.input,
+          expected: testCase.expectedOutput,
+          actual: actualVal,
+          passed: ok,
+          time: timeSec,
+        });
+      } catch (err) {
+        results.push({
+          input: testCase.input,
+          expected: testCase.expectedOutput,
+          actual: `Error: ${err.message}`,
+          passed: false,
+          time: 0,
+        });
+      }
+    }
+
+    // Clean up
+    try { fs.unlinkSync(filepath); } catch (e) {}
+    try { fs.unlinkSync(exepath); } catch (e) {}
+  }
   else {
     return {
       passed: 0,
@@ -1605,6 +1873,7 @@ const executeCode = async (code, language, testCases, problemId) => {
         expected: "",
         actual: `Unsupported programming language: ${language}`,
         passed: false,
+        time: 0,
       }),
     };
   }

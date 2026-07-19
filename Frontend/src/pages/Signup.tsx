@@ -4,8 +4,9 @@ import { useUser } from "@/contexts/UserContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from "framer-motion";
-import { User, Mail, Phone, Lock, UserPlus, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 
@@ -15,6 +16,7 @@ const Signup = () => {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"student" | "mentor" | "admin">("student");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -42,12 +44,14 @@ const Signup = () => {
     try {
       setLoading(true);
 
+      const backendRole = role === "student" ? "user" : role;
+
       const res = await api.post("/auth/signup", {
         fullName,
         email,
         phone,
         password,
-        role: "user",
+        role: backendRole,
       });
 
       localStorage.setItem("token", res.data.token);
@@ -58,7 +62,14 @@ const Signup = () => {
       setIsAuthenticated(true);
 
       toast.success("Account created successfully!");
-      navigate("/dashboard");
+
+      if (res.data.role === "admin") {
+        navigate("/admin");
+      } else if (res.data.role === "mentor") {
+        navigate("/mentor");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message || "Signup failed"
@@ -94,6 +105,22 @@ const Signup = () => {
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Account Type
+                </label>
+                <Select value={role} onValueChange={(val: "student" | "mentor" | "admin") => setRole(val)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select account type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Student</SelectItem>
+                    <SelectItem value="mentor">Mentor</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div>
                 <label className="text-sm text-muted-foreground mb-1 block">
                   Full Name

@@ -1,64 +1,30 @@
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import GlassCard from "@/components/shared/GlassCard";
 import { useUser } from "@/contexts/UserContext";
-import { Flame, Trophy, CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { Flame, Trophy, CalendarDays, Calendar } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-const WEEKS = 24;
-const DAYS_PER_WEEK = 7;
-const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
-
-interface DayData {
-  date: Date;
-  dateKey: string;
-  count: number;
-}
-
-const getIntensityClass = (count: number) => {
-  if (count === 0) return "bg-white/5 border-white/10 hover:bg-white/10";
-  if (count === 1) return "bg-neon-green/20 border-neon-green/30 shadow-[0_0_4px_rgba(34,197,94,0.15)]";
-  if (count <= 3) return "bg-neon-green/50 border-neon-green/40 shadow-[0_0_8px_rgba(34,197,94,0.3)]";
-  return "bg-gradient-to-br from-neon-green to-emerald-400 border-emerald-500 shadow-[0_0_12px_rgba(34,197,94,0.5)]";
-};
-
-const formatDate = (d: Date) =>
-  d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
-const getMonthLabels = (data: DayData[]) => {
-  const labels: { text: string; index: number }[] = [];
-  let prevMonth = -1;
-  
-  for (let i = 0; i < data.length; i += 7) {
-    const d = data[i].date;
-    const m = d.getMonth();
-    if (m !== prevMonth) {
-      labels.push({
-        text: d.toLocaleDateString("en-US", { month: "short" }),
-        index: Math.floor(i / 7),
-      });
-      prevMonth = m;
-    }
-  }
-  return labels;
-};
+import { problems as ALL_PROBLEMS } from "@/data/problems";
 
 const MonthlyStreakCalendar = () => {
   const { user } = useUser();
+  const navigate = useNavigate();
   const completedDates = user?.completedDates || [];
 
-  const activityMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    completedDates.forEach((dStr) => {
-      map[dStr] = (map[dStr] || 0) + 1;
-    });
-    return map;
-  }, [completedDates]);
+  // Load solvedIds from localStorage to be consistent with CodingArena
+  const solvedIds = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("arena.solvedIds") ?? "[]");
+    } catch {
+      return [];
+    }
+  }, []);
 
   // Compute stats dynamically from the actual completedDates
   const { currentStreak, longestStreak, totalActive } = useMemo(() => {
@@ -129,46 +95,27 @@ const MonthlyStreakCalendar = () => {
     };
   }, [completedDates]);
 
-  // Construct 24 weeks of calendar data ending with the current week
-  const data = useMemo(() => {
-    const list: DayData[] = [];
-    const today = new Date();
-    
-    // Find current day of week (Monday index = 0, Sunday index = 6)
-    const dayOfWeek = (today.getDay() + 6) % 7; 
-    
-    // Get Monday of the current week
-    const currentMonday = new Date(today);
-    currentMonday.setDate(today.getDate() - dayOfWeek);
-    
-    // Start date is exactly 23 weeks prior to currentMonday
-    const startDate = new Date(currentMonday);
-    startDate.setDate(currentMonday.getDate() - (WEEKS - 1) * 7);
+  // Calendar setup
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth(); // 0-indexed
+  const todayDate = currentDate.getDate();
 
-    const temp = new Date(startDate);
-    for (let i = 0; i < WEEKS * DAYS_PER_WEEK; i++) {
-      const dateKey = temp.toISOString().split("T")[0];
-      const count = activityMap[dateKey] || 0;
-      list.push({
-        date: new Date(temp),
-        dateKey,
-        count
-      });
-      temp.setDate(temp.getDate() + 1);
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+
+  const getProblemForDay = (day: number) => {
+    if (!ALL_PROBLEMS || ALL_PROBLEMS.length === 0) return null;
+    return ALL_PROBLEMS[(day + 2) % ALL_PROBLEMS.length];
+  };
+
+  const handleDayClick = (day: number) => {
+    const prob = getProblemForDay(day);
+    if (prob) {
+      localStorage.setItem("arena.currentProblemId", String(prob.id));
+      navigate("/arena");
     }
-    return list;
-  }, [activityMap]);
-
-  // Group days into columns (weeks)
-  const weeks = useMemo(() => {
-    const w: DayData[][] = [];
-    for (let i = 0; i < WEEKS; i++) {
-      w.push(data.slice(i * 7, (i + 1) * 7));
-    }
-    return w;
-  }, [data]);
-
-  const monthLabels = useMemo(() => getMonthLabels(data), [data]);
+  };
 
   const stats = [
     { icon: Flame, label: "Current Streak", value: `${currentStreak} days`, color: "text-neon-orange" },
@@ -178,9 +125,27 @@ const MonthlyStreakCalendar = () => {
 
   return (
     <GlassCard className="p-6 w-full" tilt={false}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes pulse-glow {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4), 0 0 8px rgba(168, 85, 247, 0.3); border-color: rgba(168, 85, 247, 0.6); }
+          50% { box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.8), 0 0 16px rgba(168, 85, 247, 0.6); border-color: rgba(168, 85, 247, 1); }
+        }
+        .animate-pulse-glow {
+          animation: pulse-glow 2s infinite ease-in-out;
+        }
+        @keyframes check-scale {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-check-scale {
+          animation: check-scale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+      ` }} />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <h3 className="font-semibold text-foreground flex items-center gap-2">
-          <Flame className="w-5 h-5 text-neon-orange animate-pulse" /> Activity Streak
+          <Calendar className="w-5 h-5 text-purple-400" /> Daily Challenge Calendar
         </h3>
         
         {/* Streak Stats Grid */}
@@ -200,75 +165,90 @@ const MonthlyStreakCalendar = () => {
         </div>
       </div>
 
-      {/* Scrollable grid container for small devices */}
-      <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-        <div className="min-w-[560px] pl-2">
-          {/* Month labels */}
-          <div className="relative h-4 mb-1 text-[10px] text-muted-foreground font-mono">
-            {monthLabels.map((lbl, idx) => (
-              <span
-                key={idx}
-                className="absolute"
-                style={{ left: `${lbl.index * 16.5 + 28}px` }}
-              >
-                {lbl.text}
-              </span>
-            ))}
-          </div>
-
-          <TooltipProvider delayDuration={50}>
-            <div className="flex gap-0.5">
-              {/* Day Labels */}
-              <div className="flex flex-col gap-0.5 mr-1.5">
-                {DAY_LABELS.map((label, i) => (
-                  <div
-                    key={i}
-                    className="h-[12px] w-6 text-[9px] text-muted-foreground flex items-center justify-end pr-1 font-mono"
-                  >
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              {/* Weeks columns */}
-              {weeks.map((week, wi) => (
-                <div key={wi} className="flex flex-col gap-0.5">
-                  {week.map((day, di) => (
-                    <Tooltip key={di}>
-                      <TooltipTrigger asChild>
-                        <motion.div
-                          whileHover={{ scale: 1.35, zIndex: 10 }}
-                          className={`w-[12px] h-[12px] rounded-[2.5px] border cursor-pointer transition-all duration-150 ${getIntensityClass(
-                            day.count
-                          )}`}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-[10px] py-1 px-2 border-border bg-card/90 backdrop-blur-md">
-                        <p className="font-semibold text-foreground">
-                          {day.count > 0
-                            ? `Solved ${day.count} task${day.count > 1 ? "s" : ""} on ${formatDate(day.date)}`
-                            : `No activity on ${formatDate(day.date)}`}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </TooltipProvider>
-
-          {/* Legend */}
-          <div className="flex items-center gap-2 mt-4 text-[10px] text-muted-foreground justify-end pr-2 font-mono">
-            <span>Less</span>
-            {[0, 1, 3, 4].map((c) => (
-              <div
-                key={c}
-                className={`w-[10px] h-[10px] rounded-[2px] border ${getIntensityClass(c)}`}
-              />
-            ))}
-            <span>More</span>
-          </div>
+      <div className="max-w-md mx-auto rounded-xl border border-white/5 bg-white/[0.01] p-4">
+        <div className="text-center text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 border-b border-white/5 pb-2">
+          {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
         </div>
+        
+        <TooltipProvider delayDuration={50}>
+          <div className="grid grid-cols-7 gap-1.5 text-center font-mono text-[10px]">
+            {/* Weekday headers */}
+            {["S", "M", "T", "W", "T", "F", "S"].map((dayName, idx) => (
+              <div key={idx} className="text-muted-foreground font-semibold py-1">{dayName}</div>
+            ))}
+
+            {/* Blank prepends */}
+            {Array.from({ length: firstDayIndex }).map((_, idx) => (
+              <div key={`empty-${idx}`} className="aspect-square opacity-0" />
+            ))}
+
+            {/* Days */}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const d = idx + 1;
+              const prob = getProblemForDay(d);
+              const isToday = d === todayDate;
+              
+              // solved dateStr key formatted stably
+              const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+              const solved = completedDates.includes(dateStr) || (prob && solvedIds.includes(prob.id));
+              const isFuture = d > todayDate;
+              const isMissed = d < todayDate && !solved;
+
+              return (
+                <Tooltip key={`day-${d}`}>
+                  <TooltipTrigger asChild>
+                    <button
+                      disabled={isFuture}
+                      onClick={() => handleDayClick(d)}
+                      className={`relative aspect-square rounded-lg flex items-center justify-center font-bold text-xs border transition-all duration-200 ${
+                        solved
+                          ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.2)] hover:scale-110"
+                          : isToday
+                          ? "bg-purple-500/10 border-purple-500 text-purple-200 animate-pulse-glow hover:scale-110"
+                          : isFuture
+                          ? "border-transparent text-muted-foreground/30 cursor-not-allowed"
+                          : isMissed
+                          ? "bg-rose-500/15 border-rose-500/35 text-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.15)] hover:scale-110"
+                          : "bg-white/5 border-white/10 text-muted-foreground hover:border-white/20 hover:bg-white/10 hover:scale-110"
+                      }`}
+                    >
+                      {solved ? (
+                        <span className="animate-check-scale text-emerald-400 font-extrabold">✓</span>
+                      ) : (
+                        <span>{d}</span>
+                      )}
+                      
+                      {isToday && !solved && (
+                        <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-purple-400" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs py-1.5 px-3 border-border bg-card/95 backdrop-blur-md">
+                    <div>
+                      {solved ? (
+                        <p className="font-semibold text-emerald-300">
+                          Completed: {prob ? prob.title : `Challenge ${d}`}
+                        </p>
+                      ) : isToday ? (
+                        <p className="font-semibold text-purple-300">
+                          Today's Challenge: {prob ? prob.title : `Challenge ${d}`}
+                        </p>
+                      ) : isMissed ? (
+                        <p className="font-semibold text-rose-400">
+                          Missed: {prob ? prob.title : `Challenge ${d}`}
+                        </p>
+                      ) : (
+                        <p className="font-semibold text-muted-foreground">
+                          Future Challenge: {prob ? prob.title : `Challenge ${d}`}
+                        </p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
       </div>
     </GlassCard>
   );

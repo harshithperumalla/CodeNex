@@ -29,6 +29,7 @@ const mapProblemList = (problem, solvedIds = []) => ({
   points: problem.points,
   acceptance: problem.acceptance,
   tags: problem.tags,
+  leetcodeLink: problem.leetcodeLink,
   solved: solvedIds.some((id) => id.toString() === problem._id.toString()),
 });
 
@@ -48,7 +49,9 @@ exports.getProblems = async (req, res) => {
     if (search) filter.title = new RegExp(search, "i");
 
     console.log("[getProblems] Finding Problems with filter:", filter);
-    const problems = await Problem.find(filter).sort({ problemId: 1 });
+    const problems = await Problem.find(filter)
+      .select("problemId title difficulty category points acceptance tags leetcodeLink")
+      .sort({ problemId: 1 });
     console.log("[getProblems] Found", problems.length, "problems.");
 
     let solvedIds = [];
@@ -141,8 +144,7 @@ exports.submitSolution = async (req, res) => {
       return res.status(404).json({ success: false, message: "Problem not found" });
     }
 
-    const publicTests = problem.testCases.filter((t) => !t.isHidden);
-    const testsToRun = publicTests.length ? publicTests : problem.testCases;
+    const testsToRun = problem.testCases;
 
     const result = await executeCode(code, language, testsToRun, problem.problemId);
 
@@ -224,7 +226,7 @@ exports.createProblem = async (req, res) => {
 
 exports.runCode = async (req, res) => {
   try {
-    const { code, language = "javascript" } = req.body;
+    const { code, language = "javascript", customInput } = req.body;
 
     if (!code) {
       return res.status(400).json({ success: false, message: "Code is required" });
@@ -241,8 +243,13 @@ exports.runCode = async (req, res) => {
       return res.status(404).json({ success: false, message: "Problem not found" });
     }
 
-    const publicTests = problem.testCases.filter((t) => !t.isHidden);
-    const testsToRun = publicTests.length ? publicTests : problem.testCases;
+    let testsToRun;
+    if (customInput !== undefined && customInput !== null) {
+      testsToRun = [{ input: customInput, expectedOutput: "", isHidden: false }];
+    } else {
+      const publicTests = problem.testCases.filter((t) => !t.isHidden);
+      testsToRun = publicTests.length ? publicTests : problem.testCases;
+    }
 
     const result = await executeCode(code, language, testsToRun, problem.problemId);
 

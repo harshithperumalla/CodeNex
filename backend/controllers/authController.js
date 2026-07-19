@@ -95,30 +95,54 @@ const forgotPassword = async (req, res) => {
 
     // Hash token and save to DB
     user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
 
     await user.save();
 
     // Create reset URL
-    const resetUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password/${resetToken}`;
+    const resetUrl = `${process.env.CLIENT_URL || "http://localhost:8080"}/reset-password/${resetToken}`;
     console.log("ℹ️ Password Reset Link (for development):", resetUrl);
 
-    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please visit the following link to reset your password:\n\n${resetUrl}\n\nIf you did not request this, please ignore this email and your password will remain unchanged.\n`;
+    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please visit the following link to reset your password:\n\n${resetUrl}\n\nThis link is valid for 15 minutes. If you did not request this, please ignore this email and your password will remain unchanged.\n`;
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e4e4e4; border-radius: 8px;">
+        <h2 style="color: #4f46e5; text-align: center; margin-bottom: 24px;">CodeNex Password Reset</h2>
+        <p>Hello,</p>
+        <p>You are receiving this email because you (or someone else) requested a password reset for your CodeNex account.</p>
+        <p>Please click the button below to reset your password. This link is valid for <strong>15 minutes</strong>:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+        </div>
+        <p>If the button doesn't work, you can also copy and paste the following link into your browser:</p>
+        <p style="word-break: break-all; color: #4f46e5;"><a href="${resetUrl}">${resetUrl}</a></p>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #777;">If you did not request this password reset, please ignore this email. Your password will remain secure and unchanged.</p>
+      </div>
+    `;
 
     try {
       await sendEmail({
         email: user.email,
-        subject: "CodeNex Password Reset",
+        subject: "CodeNex Password Reset Request",
         message,
+        html,
       });
 
       res.json({
         success: true,
-        message: "Password reset link sent to your email",
+        message: "Password reset link has been sent to your email.",
       });
     } catch (err) {
-      console.warn("⚠️ SMTP sending failed, reset URL printed to console. Error:", err.message);
+      console.error("❌ SMTP sending failed. Error details:", err);
       
+      if (process.env.NODE_ENV !== "development") {
+        return res.status(500).json({
+          success: false,
+          message: "Email could not be sent. Please try again later.",
+        });
+      }
+
       // Still return success in development so developer can use the link printed in console
       res.json({
         success: true,
