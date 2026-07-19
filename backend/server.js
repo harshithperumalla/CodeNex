@@ -22,13 +22,16 @@ app.use(
   cors({
     origin: function (origin, callback) {
       if (!origin) return callback(null, true);
-      const isAllowed = allowedOrigins.includes(origin) || 
-                        /^http:\/\/localhost:\d+$/.test(origin) || 
-                        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) ||
+        /\.onrender\.com$/.test(origin) ||
+        /\.vercel\.app$/.test(origin) ||
+        /\.netlify\.app$/.test(origin);
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error("CORS policy violation"));
+        callback(null, true);
       }
     },
     credentials: true,

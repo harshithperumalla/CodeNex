@@ -1,7 +1,21 @@
 import axios from "axios";
 
+const getBaseURL = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    return "https://codenex-backend-k2fr.onrender.com/api";
+  }
+  return "http://localhost:5153/api";
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5153/api",
+  baseURL: getBaseURL(),
   headers: {
     "Content-Type": "application/json",
   },
