@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Code2, LogIn, UserPlus, ArrowRight, Sparkles, Terminal, Cpu, ShieldCheck } from "lucide-react";
+import { Code2, LogIn, UserPlus, ArrowRight, Sparkles, Terminal, Cpu, ShieldCheck, GraduationCap } from "lucide-react";
 
 const Landing = () => {
   const navigate = useNavigate();
