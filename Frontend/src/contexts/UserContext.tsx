@@ -116,6 +116,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.removeItem("user");
     localStorage.removeItem("role");
 
+    setUser(emptyUser);
     setIsAuthenticated(false);
 
     window.location.href = "/login";
