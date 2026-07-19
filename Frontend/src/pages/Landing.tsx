@@ -191,7 +191,15 @@ const Landing = () => {
           <span className="font-semibold text-foreground">CodeNex</span>
           <span>© {new Date().getFullYear()} All rights reserved.</span>
         </div>
-        <p>Empowering the next generation of engineers.</p>
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate("/mentor/login")} className="hover:text-secondary flex items-center gap-1 transition-colors">
+            <GraduationCap className="w-3.5 h-3.5" /> Mentor Login
+          </button>
+          <span className="text-border">•</span>
+          <button onClick={() => navigate("/admin/login")} className="hover:text-accent flex items-center gap-1 transition-colors">
+            <ShieldCheck className="w-3.5 h-3.5" /> Admin Login
+          </button>
+        </div>
       </footer>
     </div>
   );

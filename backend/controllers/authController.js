@@ -14,7 +14,7 @@ const formatAuthResponse = (user, token) => ({
 
 const signup = async (req, res) => {
   try {
-    const { fullName, email, phone, password, role } = req.body;
+    const { fullName, email, phone, password } = req.body;
     if (!fullName || !email || !password) {
       return res.status(400).json({ success: false, message: "Please fill in all required fields" });
     }
@@ -23,12 +23,14 @@ const signup = async (req, res) => {
       return res.status(400).json({ success: false, message: "User already exists with this email" });
     }
 
+    // SECURITY: Public registration ALWAYS creates a Student account (role: "user").
+    // Ignore any role provided by client to prevent role escalation.
     const user = await User.create({
       fullName,
       email,
       phone: phone || "",
       password,
-      role: role || "user",
+      role: "user",
     });
 
     const token = generateToken(user._id, user.role);
@@ -40,7 +42,7 @@ const signup = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, portalRole } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, message: "Please enter email and password" });
     }
@@ -54,6 +56,18 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // SECURITY: Validate portal restriction if logging in from a role-specific portal
+    if (portalRole) {
+      const actualRole = user.role === "user" ? "student" : user.role;
+      const targetRole = portalRole === "user" ? "student" : portalRole;
+      if (actualRole !== targetRole) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. This portal is for ${targetRole} accounts only.`,
+        });
+      }
     }
 
     const token = generateToken(user._id, user.role);

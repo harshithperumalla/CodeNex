@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { Mail, Lock, LogIn, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, LogIn, Eye, EyeOff, Shield, GraduationCap, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useUser } from "@/contexts/UserContext";
@@ -17,6 +17,13 @@ const Login = () => {
 
   const { setIsAuthenticated, setUser } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine portal role from route path
+  const isMentorPortal = location.pathname === "/mentor/login";
+  const isAdminPortal = location.pathname === "/admin/login";
+  const portalRole = isAdminPortal ? "admin" : isMentorPortal ? "mentor" : "user";
+  const portalTitle = isAdminPortal ? "Admin Portal" : isMentorPortal ? "Mentor Portal" : "Student Login";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +39,7 @@ const Login = () => {
       const res = await api.post("/auth/login", {
         email,
         password,
+        portalRole,
       });
 
       localStorage.setItem("token", res.data.token);
@@ -76,8 +84,15 @@ const Login = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
             CodeNex
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Welcome back! Sign in to continue
+          <p className="text-muted-foreground mt-2 flex items-center justify-center gap-1.5 font-medium">
+            {isAdminPortal ? (
+              <Shield className="w-4 h-4 text-accent" />
+            ) : isMentorPortal ? (
+              <GraduationCap className="w-4 h-4 text-secondary" />
+            ) : (
+              <UserCheck className="w-4 h-4 text-primary" />
+            )}
+            {portalTitle}
           </p>
         </div>
 
@@ -157,15 +172,37 @@ const Login = () => {
               </Button>
             </form>
 
-            <p className="text-center text-sm text-muted-foreground mt-6">
-              Don't have an account?{" "}
-              <Link
-                to="/signup"
-                className="text-primary hover:underline font-medium"
-              >
-                Sign Up
-              </Link>
-            </p>
+            <div className="mt-6 pt-4 border-t border-border/40 text-center space-y-2 text-xs">
+              {!isAdminPortal && !isMentorPortal && (
+                <p className="text-sm text-muted-foreground mb-3">
+                  Don't have an account?{" "}
+                  <Link
+                    to="/signup"
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Sign Up
+                  </Link>
+                </p>
+              )}
+
+              <div className="flex items-center justify-center gap-4 text-muted-foreground">
+                {!isAdminPortal && (
+                  <Link to="/admin/login" className="hover:text-accent flex items-center gap-1 transition-colors">
+                    <Shield className="w-3 h-3" /> Admin Portal
+                  </Link>
+                )}
+                {!isMentorPortal && (
+                  <Link to="/mentor/login" className="hover:text-secondary flex items-center gap-1 transition-colors">
+                    <GraduationCap className="w-3 h-3" /> Mentor Portal
+                  </Link>
+                )}
+                {(isAdminPortal || isMentorPortal) && (
+                  <Link to="/login" className="hover:text-primary flex items-center gap-1 transition-colors">
+                    <UserCheck className="w-3 h-3" /> Student Portal
+                  </Link>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </motion.div>
