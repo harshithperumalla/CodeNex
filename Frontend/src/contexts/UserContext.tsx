@@ -91,6 +91,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     !!localStorage.getItem("token")
   );
 
+  const clearAuth = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+
+    setUser(emptyUser);
+    setIsAuthenticated(false);
+  };
+
   useEffect(() => {
     const fetchUser = async () => {
       const token = localStorage.getItem("token");
@@ -101,25 +110,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
             setUser(res.data.user);
             setIsAuthenticated(true);
             localStorage.setItem("user", JSON.stringify(res.data.user));
+          } else {
+            clearAuth();
           }
         } catch (err) {
           console.error("Error fetching current user:", err);
-          logout();
+          clearAuth();
         }
       }
     };
     fetchUser();
-  }, [isAuthenticated]);
+  }, []);
 
   const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-
-    setUser(emptyUser);
-    setIsAuthenticated(false);
-
-    window.location.href = "/login";
+    clearAuth();
   };
 
   const login = (email: string, _password: string) => {
