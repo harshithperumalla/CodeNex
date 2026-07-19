@@ -61,6 +61,5 @@ const problemSchema = new mongoose.Schema(
 );
 
 problemSchema.index({ difficulty: 1, category: 1 });
-problemSchema.index({ problemId: 1 });
 
 module.exports = mongoose.model("Problem", problemSchema);
