@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark" style="background-color: #0b0d14; color-scheme: dark;">
   <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,15 +25,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="icon" type="image/png" href="/codenex-logo.png" />
   <script>
-    if (localStorage.getItem("theme") !== "light") {
-      document.documentElement.classList.add("dark");
-    } else {
+    if (localStorage.getItem("theme") === "light") {
       document.documentElement.classList.remove("dark");
+    } else {
+      document.documentElement.classList.add("dark");
     }
   </script>
 </head>
 
-  <body>
+  <body style="background-color: #0b0d14;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

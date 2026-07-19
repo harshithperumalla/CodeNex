@@ -44,18 +44,14 @@ const AppLayout = () => {
         <ProfileDropdown />
       </div>
       <main className="ml-[72px] lg:ml-[220px] min-h-screen p-4 lg:p-6 relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+        >
+          <Outlet />
+        </motion.div>
       </main>
       <PageTransitionOverlay />
       <AIChatButton />
