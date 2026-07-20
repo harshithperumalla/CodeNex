@@ -49,20 +49,47 @@ app.get("/api/health", (_req, res) => {
   res.json({ success: true, status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.use("/api/auth", require("./routes/authRoutes"));
-app.use("/api/user", require("./routes/userRoutes"));
-app.use("/api/admin", require("./routes/adminRoutes"));
-app.use("/api/mentor", require("./routes/mentorRoutes"));
-app.use("/api/course", require("./routes/courseRoutes"));
-app.use("/api/course-management", require("./routes/courseManagementRoutes"));
-app.use("/api/upload", require("./routes/uploadRoutes"));
-app.use("/api/coding", require("./routes/codingRoutes"));
-app.use("/api/chatbot", require("./routes/chatbotRoutes"));
-app.use("/api/students", require("./routes/studentRoutes"));
-app.use("/api/communication", require("./routes/communicationRoutes"));
-app.use("/api/english", require("./routes/englishRoutes"));
-app.use("/api/codenex-ai", require("./routes/codenexAIRoutes"));
-app.use("/api/suggestions", require("./routes/suggestionRoutes"));
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const mentorRoutes = require("./routes/mentorRoutes");
+const courseRoutes = require("./routes/courseRoutes");
+const courseManagementRoutes = require("./routes/courseManagementRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
+const codingRoutes = require("./routes/codingRoutes");
+const chatbotRoutes = require("./routes/chatbotRoutes");
+const studentRoutes = require("./routes/studentRoutes");
+const communicationRoutes = require("./routes/communicationRoutes");
+const englishRoutes = require("./routes/englishRoutes");
+const codenexAIRoutes = require("./routes/codenexAIRoutes");
+const suggestionRoutes = require("./routes/suggestionRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
+
+// Standard /api routes
+app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/mentor", mentorRoutes);
+app.use("/api/course", courseRoutes);
+app.use("/api/course-management", courseManagementRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/coding", codingRoutes);
+app.use("/api/chatbot", chatbotRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/communication", communicationRoutes);
+app.use("/api/english", englishRoutes);
+app.use("/api/codenex-ai", codenexAIRoutes);
+app.use("/api/suggestions", suggestionRoutes);
+app.use("/api/payment", paymentRoutes);
+
+// Alias fallback routes without /api prefix for compatibility
+app.use("/auth", authRoutes);
+app.use("/user", userRoutes);
+app.use("/admin", adminRoutes);
+app.use("/mentor", mentorRoutes);
+app.use("/course", courseRoutes);
+app.use("/coding", codingRoutes);
+app.use("/payment", paymentRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
