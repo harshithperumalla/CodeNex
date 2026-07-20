@@ -8,6 +8,7 @@ import { Mail, Lock, LogIn, Eye, EyeOff, Shield, GraduationCap, UserCheck } from
 import { toast } from "sonner";
 import api from "@/services/api";
 import { useUser } from "@/contexts/UserContext";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -171,6 +172,17 @@ const Login = () => {
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border/40" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton portalRole={portalRole} />
 
             <div className="mt-6 pt-4 border-t border-border/40 text-center space-y-2 text-xs">
               {!isAdminPortal && !isMentorPortal && (

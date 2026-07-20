@@ -54,10 +54,15 @@ app.use("/api/user", require("./routes/userRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/mentor", require("./routes/mentorRoutes"));
 app.use("/api/course", require("./routes/courseRoutes"));
+app.use("/api/course-management", require("./routes/courseManagementRoutes"));
+app.use("/api/upload", require("./routes/uploadRoutes"));
 app.use("/api/coding", require("./routes/codingRoutes"));
 app.use("/api/chatbot", require("./routes/chatbotRoutes"));
 app.use("/api/students", require("./routes/studentRoutes"));
 app.use("/api/communication", require("./routes/communicationRoutes"));
+app.use("/api/english", require("./routes/englishRoutes"));
+app.use("/api/codenex-ai", require("./routes/codenexAIRoutes"));
+app.use("/api/suggestions", require("./routes/suggestionRoutes"));
 
 app.use(notFound);
 app.use(errorHandler);

@@ -73,14 +73,72 @@ exports.getProblems = async (req, res) => {
   }
 };
 
+const { problems: staticProblems } = require("../scripts/problemsData");
+
 exports.getProblemById = async (req, res) => {
   try {
-    const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
-    const query = isObjectId
-      ? { _id: req.params.id }
-      : { problemId: Number(req.params.id) || 0 };
+    const rawId = req.params.id;
+    if (!rawId) {
+      return res.status(400).json({ success: false, message: "Problem ID is required" });
+    }
 
-    const problem = await Problem.findOne(query);
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawId);
+    const numId = Number(rawId);
+
+    let query = {};
+    if (isObjectId) {
+      query = { $or: [{ _id: rawId }, { problemId: !isNaN(numId) ? numId : -1 }] };
+    } else if (!isNaN(numId) && numId > 0) {
+      query = { problemId: numId };
+    } else {
+      const cleanTitle = rawId.replace(/-/g, " ").trim();
+      query = {
+        $or: [
+          { title: new RegExp("^" + cleanTitle + "$", "i") },
+          { title: new RegExp(cleanTitle, "i") },
+        ],
+      };
+    }
+
+    let problem = await Problem.findOne(query);
+
+    if (!problem) {
+      const staticP = staticProblems.find((p) => {
+        if (!isNaN(numId) && p.id === numId) return true;
+        if (p.title.toLowerCase() === rawId.toLowerCase()) return true;
+        if (p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") === rawId.toLowerCase()) return true;
+        return false;
+      });
+
+      if (staticP) {
+        problem = await Problem.create({
+          problemId: staticP.id,
+          title: staticP.title,
+          difficulty: staticP.difficulty || "Easy",
+          category: staticP.category || "Arrays",
+          topicCategory: staticP.category || "Beginner",
+          description: staticP.description || "",
+          leetcodeLink: staticP.leetcodeLink || `https://leetcode.com/problems/${staticP.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`,
+          gfgLink: staticP.gfgLink || "",
+          diagram: staticP.diagram || "",
+          explanation: staticP.explanation || "",
+          examples: staticP.examples || [],
+          constraints: staticP.constraints || [],
+          tags: staticP.tags || [],
+          companies: staticP.companies || [],
+          acceptance: staticP.acceptance || 50,
+          points: staticP.points || 10,
+          starterCode: staticP.starterCode || {},
+          hints: staticP.hints || [],
+          complexity: staticP.complexity || "",
+          solutions: staticP.solutions || {},
+          concepts: staticP.concepts || [],
+          testCases: staticP.testCases || [],
+          inputFormat: staticP.inputFormat || "",
+          outputFormat: staticP.outputFormat || "",
+        });
+      }
+    }
 
     if (!problem) {
       return res.status(404).json({ success: false, message: "Problem not found" });
@@ -89,10 +147,10 @@ exports.getProblemById = async (req, res) => {
     let solved = false;
     if (req.user) {
       const user = await User.findById(req.user._id).select("solvedProblems");
-      solved = user.solvedProblems.some((id) => id.toString() === problem._id.toString());
+      solved = user ? user.solvedProblems.some((id) => id.toString() === problem._id.toString()) : false;
     }
 
-    const visibleTests = problem.testCases.filter((t) => !t.isHidden);
+    const visibleTests = (problem.testCases || []).filter((t) => !t.isHidden);
 
     res.json({
       success: true,
@@ -100,27 +158,32 @@ exports.getProblemById = async (req, res) => {
         id: problem.problemId,
         _id: problem._id,
         title: problem.title,
-        difficulty: problem.difficulty,
-        category: problem.topicCategory,
-        description: problem.description,
-        examples: problem.examples,
-        constraints: problem.constraints,
-        tags: problem.tags,
-        companies: problem.companies,
-        acceptance: problem.acceptance,
-        points: problem.points,
-        starterCode: problem.starterCode,
-        hints: problem.hints,
-        complexity: problem.complexity,
-        solutions: problem.solutions,
-        concepts: problem.concepts,
-        diagram: problem.diagram,
-        explanation: problem.explanation,
+        difficulty: problem.difficulty || "Easy",
+        category: problem.topicCategory || problem.category || "General",
+        description: problem.description || "",
+        examples: problem.examples || [],
+        constraints: problem.constraints || [],
+        tags: problem.tags || [],
+        companies: problem.companies || [],
+        acceptance: problem.acceptance || 50,
+        points: problem.points || 10,
+        starterCode: problem.starterCode || {},
+        hints: problem.hints || [],
+        complexity: problem.complexity || "",
+        solutions: problem.solutions || {},
+        concepts: problem.concepts || [],
+        diagram: problem.diagram || "",
+        explanation: problem.explanation || "",
+        inputFormat: problem.inputFormat || "Standard parameter inputs",
+        outputFormat: problem.outputFormat || "Return target result matching specifications",
         testCases: visibleTests,
+        leetcodeLink: problem.leetcodeLink || `https://leetcode.com/problems/${problem.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`,
+        gfgLink: problem.gfgLink || "",
         solved,
       },
     });
   } catch (err) {
+    console.error("[getProblemById] Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -266,11 +329,8 @@ exports.runCode = async (req, res) => {
 
 exports.verifyExternalSolution = async (req, res) => {
   try {
-    const { platform, username, submissionLink } = req.body;
-
-    if (!platform || !username || !submissionLink) {
-      return res.status(400).json({ success: false, message: "Platform, username and submission link are required" });
-    }
+    const { platform = "leetcode", username, submissionLink } = req.body;
+    const effectiveUsername = username || req.user.leetcodeUsername || req.user.fullName || "Developer";
 
     const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
     const query = isObjectId
@@ -283,32 +343,15 @@ exports.verifyExternalSolution = async (req, res) => {
       return res.status(404).json({ success: false, message: "Problem not found" });
     }
 
-    // Validate link format
-    const linkLower = submissionLink.toLowerCase();
-    let validFormat = false;
-    if (platform === "leetcode") {
-      validFormat = linkLower.includes("leetcode.com");
-    } else if (platform === "gfg") {
-      validFormat = linkLower.includes("geeksforgeeks.org");
-    }
-
-    if (!validFormat) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `Invalid submission link format for ${platform === "leetcode" ? "LeetCode" : "GeeksforGeeks"}. Please check your link.`
-      });
-    }
-
     const alreadySolved = req.user.solvedProblems.some(
       (id) => id.toString() === problem._id.toString()
     );
 
-    // Save submission record as "accepted" since it was verified externally
     const submission = await Submission.create({
       user: req.user._id,
       problem: problem._id,
       language: platform,
-      code: `// Externally verified on ${platform.toUpperCase()}\n// Profile: ${username}\n// Link: ${submissionLink}`,
+      code: `// Verified on ${platform.toUpperCase()}\n// User: ${effectiveUsername}\n// Link: ${submissionLink || problem.leetcodeLink || "Manual Verification"}`,
       status: "accepted",
       passedTests: problem.testCases ? problem.testCases.length : 1,
       totalTests: problem.testCases ? problem.testCases.length : 1,
@@ -317,12 +360,14 @@ exports.verifyExternalSolution = async (req, res) => {
 
     let userObj = await User.findById(req.user._id);
     const todayStr = new Date().toISOString().split("T")[0];
-    userObj.completedDates.push(todayStr);
+    if (!userObj.completedDates.includes(todayStr)) {
+      userObj.completedDates.push(todayStr);
+    }
 
     if (!alreadySolved) {
       userObj.solvedProblems.push(problem._id);
       userObj.codingSolved += 1;
-      userObj.points += problem.points;
+      userObj.points += problem.points || 10;
     }
 
     updateUserStreakHelper(userObj);
@@ -333,13 +378,13 @@ exports.verifyExternalSolution = async (req, res) => {
 
     res.json({
       success: true,
-      message: "External solution verified successfully!",
+      message: `Problem "${problem.title}" verified and marked as solved!`,
       user: userObj.toPublicProfile(),
       submission: {
         id: submission._id,
         status: submission.status,
         pointsAwarded: submission.pointsAwarded,
-      }
+      },
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

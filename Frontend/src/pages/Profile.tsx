@@ -9,9 +9,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import ProfilePictureDialog from "@/components/shared/ProfilePictureDialog";
 import { motion } from "framer-motion";
 import {
-  User, Mail, Phone, MapPin, GraduationCap, BookOpen, Calendar,
-  Github, Linkedin, Globe, Edit3, Save, X, Upload
+  User, Shield, Edit3, Award, Trophy, Code2, BookOpen, Brain, Zap,
+  Github, Linkedin, Globe, MapPin, GraduationCap, Calendar, Check, Save, Flame, Keyboard, Video, Sparkles, Mail, Phone, X, Upload
 } from "lucide-react";
+import LeetCodeConnectCard from "@/components/shared/LeetCodeConnectCard";
 import api from "@/services/api";
 import { toast } from "sonner";
 
@@ -265,6 +266,10 @@ const Profile = () => {
           </Card>
         </motion.div>
       </div>
+
+      <motion.div {...fadeUp} transition={{ delay: 0.18 }}>
+        <LeetCodeConnectCard />
+      </motion.div>
 
       <motion.div {...fadeUp} transition={{ delay: 0.2 }}>
         <Card className="border-border/50 bg-card/80 backdrop-blur-sm">

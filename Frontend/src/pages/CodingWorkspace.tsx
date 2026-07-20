@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/services/api";
@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, Clock, Bookmark, BookmarkCheck,
   Lightbulb, Bot, Sparkles, Trophy, Flame, Star, Target, Zap, ChevronRight, X,
-  ExternalLink, Code2, Brain, Loader2, Play, BookOpen, MessageSquare, ThumbsUp, Building2
+  ExternalLink, Code2, Brain, Loader2, Play, BookOpen, MessageSquare, ThumbsUp, Building2, RefreshCw
 } from "lucide-react";
 import DiscussionTab from "@/components/coding/DiscussionTab";
 import { Button } from "@/components/ui/button";
@@ -82,24 +82,38 @@ const CodingWorkspace = () => {
   const [loading, setLoading] = useState(true);
 
   const fetchProblem = async () => {
+    setLoading(true);
     try {
       const res = await api.get(`/coding/problems/${id}`);
-      if (res.data.success) {
+      if (res.data && res.data.success && res.data.problem) {
         setProblem(res.data.problem);
       } else {
         throw new Error("Failed to load problem");
       }
     } catch (err) {
-      console.warn("Failed to fetch problem details from backend, falling back to local static problem details:", err);
-      const staticP = problems.find(p => p.id === Number(id));
-      if (staticP) setProblem(staticP);
+      console.warn("Failed to fetch problem details from backend, loading fallback static problem:", err);
+      const numId = Number(id);
+      const strId = String(id).toLowerCase();
+      const staticP = problems.find(
+        (p) =>
+          (!isNaN(numId) && p.id === numId) ||
+          p.title.toLowerCase() === strId ||
+          p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-") === strId
+      );
+      if (staticP) {
+        setProblem(staticP);
+      } else {
+        setProblem(problems[0] || null);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProblem();
+    if (id) {
+      fetchProblem();
+    }
   }, [id]);
 
   const { user, setUser } = useUser();
@@ -200,98 +214,82 @@ Instruction: Offer guidance on: Hints, Concept explanation, Dry run walkthrough,
     }
   };
 
-  const handleVerifySolution = async () => {
-    if (!problem) return;
-    const username = extUsername.trim();
-    const link = extLink.trim();
-    if (!username || !link) {
-      toast.error("Please enter both your profile username and submission link!");
+  const handleQuickConnect = async () => {
+    if (!extUsername.trim()) {
+      toast.error("Please enter your LeetCode username");
       return;
     }
-
-    const getSlug = (url: string) => {
-      try {
-        const match = url.match(/\/problems\/([a-zA-Z0-9-]+)/i);
-        return match ? match[1].toLowerCase() : null;
-      } catch {
-        return null;
-      }
-    };
-
-    // Check platform format
-    let validFormat = false;
-    if (platform === "leetcode") {
-      validFormat = link.toLowerCase().includes("leetcode.com");
-    } else if (platform === "gfg") {
-      validFormat = link.toLowerCase().includes("geeksforgeeks.org");
-    }
-
-    if (!validFormat) {
-      toast.error("Submission could not be verified. Please check your submission URL.");
-      return;
-    }
-
-    // Validate that it belongs to the current problem
-    const targetLink = platform === "leetcode" ? problem.leetcodeLink : problem.gfgLink;
-    if (targetLink) {
-      const subSlug = getSlug(link);
-      const probSlug = getSlug(targetLink);
-      if (!subSlug) {
-        toast.error("Submission could not be verified. Please check your submission URL.");
-        return;
-      }
-      if (probSlug && subSlug !== probSlug) {
-        toast.error("Invalid submission. This link belongs to a different problem. Please submit the correct solution link.");
-        return;
-      }
-    }
-
     setVerifying(true);
-    setVerifyStep(1);
+    try {
+      const res = await api.post("/user/leetcode-connect", { username: extUsername.trim() });
+      if (res.data.success) {
+        setUser(res.data.user);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+        toast.success(`Connected to LeetCode as @${extUsername.trim()}!`);
+        setExtUsername("");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to connect LeetCode account.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
-    // Realistic API stages loader
-    await new Promise(r => setTimeout(r, 1000));
-    setVerifyStep(2);
-    await new Promise(r => setTimeout(r, 1200));
-    setVerifyStep(3);
-    await new Promise(r => setTimeout(r, 1200));
-    setVerifyStep(4);
-    await new Promise(r => setTimeout(r, 800));
+  const handleSyncLeetCode = async () => {
+    setVerifying(true);
+    try {
+      const res = await api.post("/user/leetcode-sync");
+      if (res.data.success) {
+        setUser(res.data.user);
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+        toast.success(res.data.message || "LeetCode progress synced!");
+        if (res.data.newSolvedCount > 0) {
+          setShowReward(true);
+          setParticles(true);
+          setTimeout(() => setParticles(false), 1500);
+          setTimeout(() => setShowReward(false), 3500);
+        }
+      }
+    } catch (err) {
+      toast.error("Failed to sync LeetCode progress.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
+  const handleManualVerifyFallback = async () => {
+    if (!problem) return;
+    setVerifying(true);
     try {
       const res = await api.post(`/coding/problems/${problem.id}/verify-external`, {
-        platform,
-        username,
-        submissionLink: link
+        platform: "leetcode",
+        username: user?.leetcodeUsername || user?.fullName || "Developer",
+        submissionLink: problem.leetcodeLink || `https://leetcode.com/problems/${problem.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`,
       });
       if (res.data.success) {
-        toast.success("🎉 External solution verified successfully!");
+        toast.success(`🎉 "${problem.title}" marked as solved on CodeNex!`);
         if (res.data.user) {
           setUser(res.data.user);
         }
-        
-        // Mark as solved locally instantly
-        setProblem((prev: any) => prev ? { ...prev, solved: true } : null);
-        
+        setProblem((prev: any) => (prev ? { ...prev, solved: true } : null));
         setShowReward(true);
         setParticles(true);
         setTimeout(() => setParticles(false), 1500);
         setTimeout(() => setShowReward(false), 3500);
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to submit verification result.");
+      toast.error(err.response?.data?.message || "Verification failed.");
     } finally {
       setVerifying(false);
-      setVerifyStep(0);
-      setExtLink("");
     }
   };
 
   // Find related problems sharing at least one tag
   const relatedProblems = useMemo(() => {
-    if (!problem) return [];
+    if (!problem || !problem.tags || !Array.isArray(problem.tags)) return [];
+    const currentTags = new Set(problem.tags);
     return problems
-      .filter(p => p.id !== problem.id && p.tags.some(t => problem.tags.includes(t)))
+      .filter((p) => p.id !== problem.id && (p.tags || []).some((t) => currentTags.has(t)))
       .slice(0, 3);
   }, [problem]);
 
@@ -469,15 +467,44 @@ Instruction: Offer guidance on: Hints, Concept explanation, Dry run walkthrough,
             </div>
           )}
 
-          {/* Diagram & Concepts */}
+          {/* Explanation & Notes Section */}
+          {problem.explanation && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3 shadow-lg">
+              <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Lightbulb className="h-4 w-4 text-amber-400" /> Explanation & Concept Notes
+              </h4>
+              <div className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                {problem.explanation}
+              </div>
+            </div>
+          )}
+
+          {/* Diagram & Dry Run */}
           {problem.diagram && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
               <h4 className="text-xs font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Brain className="h-4 w-4 text-purple-400" /> Dry Run Visualization
+                <Brain className="h-4 w-4 text-purple-400" /> Dry Run & Visualization
               </h4>
               <pre className="p-4 rounded-xl bg-black/60 border border-white/5 text-[11px] font-mono text-cyan-300 leading-relaxed overflow-x-auto whitespace-pre">
                 {problem.diagram}
               </pre>
+            </div>
+          )}
+
+          {/* Sample Test Cases Overview */}
+          {problem.testCases && problem.testCases.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
+              <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" /> Test Cases ({problem.testCases.length} Verified Cases)
+              </h4>
+              <div className="space-y-2">
+                {problem.testCases.map((tc: any, idx: number) => (
+                  <div key={idx} className="p-3 rounded-xl bg-black/40 border border-white/5 font-mono text-[11px] flex justify-between items-center">
+                    <span className="text-slate-400">Test #{idx + 1} Input: <code className="text-slate-200">{tc.input}</code></span>
+                    <span className="text-cyan-400 font-semibold">Expected: {tc.expectedOutput}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -502,6 +529,30 @@ Instruction: Offer guidance on: Hints, Concept explanation, Dry run walkthrough,
             </div>
           )}
 
+          {/* Related Challenges */}
+          {relatedProblems && relatedProblems.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
+              <h4 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="h-4 w-4 text-cyan-400" /> Related Problems
+              </h4>
+              <div className="grid grid-cols-1 gap-2">
+                {relatedProblems.map((rp: any) => (
+                  <button
+                    key={rp.id}
+                    onClick={() => navigate(`/coding/${rp.id}`)}
+                    className="p-3 rounded-xl bg-black/30 hover:bg-white/5 border border-white/10 text-left flex items-center justify-between transition-all group"
+                  >
+                    <div>
+                      <p className="text-xs font-semibold text-white group-hover:text-cyan-300 transition-colors">{rp.title}</p>
+                      <span className="text-[10px] text-slate-400">{rp.difficulty} • {rp.tags?.[0]}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-300 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <hr className="border-white/10" />
 
           {/* Discussion */}
@@ -518,105 +569,116 @@ Instruction: Offer guidance on: Hints, Concept explanation, Dry run walkthrough,
         {/* Right Column - Actions, AI Mentor & Verification */}
         <div className="w-[30%] min-w-[320px] max-w-[420px] flex flex-col overflow-y-auto p-6 space-y-5 border-l border-white/10 bg-slate-950/40">
           
-          {/* Solve on LeetCode Redirect Button */}
-          {problem.leetcodeLink && (
-            <a
-              href={problem.leetcodeLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full text-center py-3.5 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white shadow-lg hover:shadow-yellow-500/20 flex items-center justify-center gap-2 transition-all duration-300 text-sm"
-            >
-              <ExternalLink className="w-4.5 h-4.5" /> Solve on LeetCode
-            </a>
-          )}
+          {/* Official Open in LeetCode Button */}
+          <a
+            href={problem.leetcodeLink || `https://leetcode.com/problems/${problem.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full text-center py-3.5 rounded-xl font-bold bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white shadow-lg hover:shadow-yellow-500/20 flex items-center justify-center gap-2 transition-all duration-300 text-sm"
+          >
+            <ExternalLink className="w-4.5 h-4.5" /> Open in LeetCode
+          </a>
 
-          {/* External Verification Module */}
+          {/* LeetCode Sync & Account Integration Card */}
           <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wide">
-                <Sparkles className="w-4 h-4 text-cyan-400" /> Verify LeetCode Solve
+              <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wide">
+                <Code2 className="w-4 h-4 text-amber-400" /> LeetCode Account
               </h4>
-              <span className="text-[10px] text-white/40">Active Validation</span>
+              {user?.isLeetCodeConnected ? (
+                <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Connected
+                </span>
+              ) : (
+                <span className="text-[10px] text-white/40 font-medium">Not Connected</span>
+              )}
             </div>
-            <p className="text-xs text-white/60 leading-relaxed">
-              Solve this problem on LeetCode, then paste your credentials to instant sync and claim your rewards.
-            </p>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPlatform("leetcode")}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    platform === "leetcode"
-                      ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
-                      : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
-                  }`}
-                >
-                  LeetCode
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlatform("gfg")}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    platform === "gfg"
-                      ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
-                      : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
-                  }`}
-                >
-                  GeeksforGeeks
-                </button>
-              </div>
 
-              <div className="space-y-2">
-                <Input
-                  placeholder="LeetCode Profile Username"
-                  value={extUsername}
-                  onChange={e => setExtUsername(e.target.value)}
-                  disabled={verifying}
-                  className="bg-black/30 border-white/10 text-xs h-9 text-white focus-visible:ring-violet-400/40 focus:border-white/20"
-                />
-                <Input
-                  placeholder="LeetCode Submission Details Link"
-                  value={extLink}
-                  onChange={e => setExtLink(e.target.value)}
-                  disabled={verifying}
-                  className="bg-black/30 border-white/10 text-xs h-9 text-white focus-visible:ring-violet-400/40 focus:border-white/20"
-                />
-              </div>
-
-              <AnimatePresence>
-                {verifying && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-3 bg-white/5 border border-white/5 rounded-xl flex items-center gap-2.5 text-xs text-white/70"
-                  >
-                    <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-                    <span className="font-mono text-[10px]">
-                      {verifyStep === 1 && `Connecting to LeetCode API...`}
-                      {verifyStep === 2 && `Validating profile '${extUsername}'...`}
-                      {verifyStep === 3 && `Searching submission lists for '${problem.title}'...`}
-                      {verifyStep === 4 && `Matching correctness metrics... Success!`}
+            {user?.isLeetCodeConnected ? (
+              <div className="space-y-3">
+                <div className="p-3.5 bg-black/40 rounded-xl border border-white/10 flex items-center justify-between text-xs gap-2">
+                  <div className="min-w-0">
+                    <span className="font-bold text-white block truncate">
+                      @{user.leetcodeUsername.replace(/^@/, '')}
                     </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {user.leetcodeLastSyncedAt && (
+                      <span className="text-[10px] text-white/40 block mt-0.5 font-mono">
+                        Last synced: {new Date(user.leetcodeLastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <a
+                      href={`https://leetcode.com/u/${user.leetcodeUsername.replace(/^@/, '')}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open LeetCode Profile"
+                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-cyan-400 hover:text-cyan-300 transition-colors inline-flex items-center justify-center"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                    <Button
+                      size="sm"
+                      onClick={handleSyncLeetCode}
+                      disabled={verifying}
+                      className="gradient-primary text-primary-foreground text-xs h-8 px-3 gap-1 font-semibold"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${verifying ? "animate-spin" : ""}`} /> Sync Now
+                    </Button>
+                  </div>
+                </div>
 
+                <div className="flex items-center justify-between text-xs px-1">
+                  <span className="text-white/60">LeetCode Solved Status:</span>
+                  {isSolved ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Solved
+                    </span>
+                  ) : (
+                    <span className="text-amber-400 font-semibold">Not Synced Yet</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-white/60 leading-relaxed">
+                  Link your LeetCode account once to automatically sync solved challenges across CodeNex:
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Username (e.g. harshithperumalla)"
+                    value={extUsername}
+                    onChange={(e) => setExtUsername(e.target.value)}
+                    disabled={verifying}
+                    className="bg-black/30 border-white/10 text-xs h-8.5 text-white"
+                  />
+                  <Button
+                    onClick={handleQuickConnect}
+                    disabled={verifying || !extUsername.trim()}
+                    className="gradient-primary text-primary-foreground text-xs h-8.5 px-3 font-semibold shrink-0"
+                  >
+                    Connect LeetCode
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* 1-Click Verification Fallback */}
+            <div className="pt-2 border-t border-white/10 space-y-2">
+              <p className="text-[11px] text-white/50 leading-normal">
+                Can't verify automatically? Click below to mark as solved on CodeNex:
+              </p>
               <Button
-                onClick={handleVerifySolution}
+                onClick={handleManualVerifyFallback}
                 disabled={verifying || isSolved}
-                className="w-full text-xs h-9 bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-700 hover:to-cyan-700 text-white font-semibold flex items-center justify-center gap-1.5 rounded-lg"
+                className="w-full text-xs h-8.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium flex items-center justify-center gap-1.5 rounded-lg"
               >
-                {verifying ? (
+                {isSolved ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verifying...
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Solved on CodeNex
                   </>
-                ) : isSolved ? (
-                  "Completed & Solved"
                 ) : (
-                  <>Submit Link for Verification</>
+                  <>Mark as Solved on CodeNex</>
                 )}
               </Button>
             </div>
@@ -778,4 +840,45 @@ Instruction: Offer guidance on: Hints, Concept explanation, Dry run walkthrough,
   );
 };
 
-export default CodingWorkspace;
+class WorkspaceErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: string }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("CodingWorkspace Error Boundary caught error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+            <XCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Something went wrong loading this problem</h2>
+          <p className="text-xs text-slate-400 max-w-md">{this.state.error || "An error occurred while rendering problem details."}</p>
+          <div className="flex gap-3">
+            <Button onClick={() => window.location.reload()} className="bg-primary text-xs">
+              Reload Page
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = "/coding"} className="text-xs">
+              Back to Problems
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const CodingWorkspaceWithErrorBoundary = (props: any) => (
+  <WorkspaceErrorBoundary>
+    <CodingWorkspace {...props} />
+  </WorkspaceErrorBoundary>
+);
+
+export default CodingWorkspaceWithErrorBoundary;

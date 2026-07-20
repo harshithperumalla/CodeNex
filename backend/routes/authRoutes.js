@@ -12,6 +12,7 @@ console.log("protect:", typeof authMiddleware.protect);
 
 router.post("/signup", authController.signup);
 router.post("/login", authController.login);
+router.post("/google", authController.googleAuth);
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password/:token", authController.resetPassword);
 router.get("/me", authMiddleware.protect, authController.getMe);

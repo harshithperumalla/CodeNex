@@ -1,42 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import GlassCard from "@/components/shared/GlassCard";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip, AreaChart, Area } from "recharts";
-import { Code2, Brain, BookOpen, Trophy, Target, Zap, Award, Keyboard } from "lucide-react";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
+import { Code2, Brain, BookOpen, Trophy, Target, Zap, Keyboard, Loader2, PlayCircle } from "lucide-react";
 import MonthlyStreakCalendar from "@/components/dashboard/MonthlyStreakCalendar";
 import api from "@/services/api";
-
-const weeklyData = [
-  { day: "Mon", coding: 8, aptitude: 5 },
-  { day: "Tue", coding: 12, aptitude: 8 },
-  { day: "Wed", coding: 6, aptitude: 10 },
-  { day: "Thu", coding: 15, aptitude: 7 },
-  { day: "Fri", coding: 10, aptitude: 12 },
-  { day: "Sat", coding: 18, aptitude: 9 },
-  { day: "Sun", coding: 14, aptitude: 11 },
-];
-
-const rankData = [
-  { week: "W1", rank: 25 },
-  { week: "W2", rank: 18 },
-  { week: "W3", rank: 12 },
-  { week: "W4", rank: 7 },
-];
 
 const getBestWpm = () => {
   try {
     const results = JSON.parse(localStorage.getItem("typingResults") || "[]");
-    if (results.length === 0) return "—";
+    if (results.length === 0) return "0 WPM";
     return Math.max(...results.map((r: any) => r.wpm)) + " WPM";
-  } catch { return "—"; }
+  } catch { return "0 WPM"; }
 };
-
-
-const recentCourses = [
-  { name: "React Advanced Patterns", progress: 78 },
-  { name: "System Design Basics", progress: 45 },
-  { name: "Node.js Masterclass", progress: 92 },
-];
 
 const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -58,19 +34,27 @@ const Dashboard = () => {
     fetchDashboard();
   }, []);
 
-  const currentWeeklyData = dashboardData?.weeklyActivity ?? weeklyData;
-  const currentRankData = dashboardData?.rankHistory ?? rankData;
-  const currentRecentCourses = dashboardData?.recentCourses ?? recentCourses;
+  const currentWeeklyData = dashboardData?.weeklyActivity || [];
+  const currentRankData = dashboardData?.rankHistory || [];
+  const currentRecentCourses = dashboardData?.recentCourses || [];
 
   const stats = [
     { icon: Code2, label: "Problems Solved", value: String(dashboardData?.profile?.codingSolved ?? 0), color: "text-neon-cyan" },
     { icon: Brain, label: "Aptitude Score", value: dashboardData?.profile?.aptitudeCompleted !== undefined ? `${Math.min(100, dashboardData.profile.aptitudeCompleted * 2)}%` : "0%", color: "text-neon-purple" },
     { icon: BookOpen, label: "Courses Done", value: String(dashboardData?.profile?.coursesWatched ?? 0), color: "text-neon-green" },
     { icon: Trophy, label: "Current Rank", value: dashboardData?.profile?.rank ? `#${dashboardData.profile.rank}` : "—", color: "text-neon-orange" },
-    { icon: Target, label: "Total Points", value: dashboardData?.profile?.points?.toLocaleString() ?? "0", color: "text-neon-pink" },
+    { icon: Target, label: "Total Points", value: (dashboardData?.profile?.points ?? 0).toLocaleString(), color: "text-neon-pink" },
     { icon: Zap, label: "Streak Days", value: String(dashboardData?.profile?.streak ?? 0), color: "text-neon-yellow" },
     { icon: Keyboard, label: "Best Typing Speed", value: getBestWpm(), color: "text-neon-orange" },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -97,64 +81,76 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <GlassCard className="p-5" tilt={false}>
           <h3 className="font-semibold mb-4 text-foreground">Weekly Activity</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={currentWeeklyData}>
-                <XAxis dataKey="day" tick={{ fill: "hsl(220 15% 55%)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip contentStyle={{ background: "hsl(230 25% 11% / 0.9)", border: "1px solid hsl(230 20% 22%)", borderRadius: "8px", color: "hsl(210 40% 96%)" }} />
-                <Bar dataKey="coding" fill="hsl(195 100% 50%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="aptitude" fill="hsl(265 90% 60%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {currentWeeklyData.length > 0 ? (
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={currentWeeklyData}>
+                  <XAxis dataKey="day" stroke="#666" fontSize={12} />
+                  <YAxis stroke="#666" fontSize={12} />
+                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 8 }} />
+                  <Bar dataKey="coding" fill="#06b6d4" radius={[4, 4, 0, 0]} name="Coding Solves" />
+                  <Bar dataKey="aptitude" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Aptitude Solves" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">
+              No activity recorded this week yet. Start solving problems to track progress!
+            </div>
+          )}
         </GlassCard>
 
         <GlassCard className="p-5" tilt={false}>
-          <h3 className="font-semibold mb-4 text-foreground">Rank Progress</h3>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={currentRankData}>
-                <defs>
-                  <linearGradient id="rankGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(265 90% 60%)" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="hsl(265 90% 60%)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="week" tick={{ fill: "hsl(220 15% 55%)", fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis reversed hide />
-                <Tooltip contentStyle={{ background: "hsl(230 25% 11% / 0.9)", border: "1px solid hsl(230 20% 22%)", borderRadius: "8px", color: "hsl(210 40% 96%)" }} />
-                <Area type="monotone" dataKey="rank" stroke="hsl(265 90% 60%)" fill="url(#rankGrad)" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <h3 className="font-semibold mb-4 text-foreground">Rank Progression</h3>
+          {currentRankData.length > 0 ? (
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={currentRankData}>
+                  <XAxis dataKey="week" stroke="#666" fontSize={12} />
+                  <YAxis reversed stroke="#666" fontSize={12} />
+                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 8 }} />
+                  <Line type="monotone" dataKey="rank" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316" }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-52 flex items-center justify-center text-xs text-muted-foreground">
+              No rank history available yet.
+            </div>
+          )}
         </GlassCard>
       </div>
 
-      {/* Streak Calendar */}
-      <MonthlyStreakCalendar />
+      {/* Monthly Streak Calendar */}
+      <MonthlyStreakCalendar completedDates={dashboardData?.profile?.completedDates || []} />
 
-      {/* Recent Courses */}
+      {/* Recent Enrolled Courses */}
       <GlassCard className="p-5" tilt={false}>
-        <h3 className="font-semibold mb-4 text-foreground">Recently Watched</h3>
-        <div className="space-y-3">
-          {currentRecentCourses.map((c, i) => (
-            <div key={c.name} className="flex items-center gap-4">
-              <div className="flex-1">
-                <p className="text-sm text-foreground">{c.name}</p>
-                <div className="w-full h-2 bg-muted rounded-full mt-1.5 overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${c.progress}%` }}
-                    transition={{ delay: 0.5 + i * 0.2, duration: 0.8 }}
-                    className="h-full rounded-full gradient-primary"
-                  />
+        <h3 className="font-semibold mb-4 text-foreground">Recent Enrolled Courses</h3>
+        {currentRecentCourses.length > 0 ? (
+          <div className="space-y-3">
+            {currentRecentCourses.map((c: any) => (
+              <div key={c.name} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-3">
+                  <PlayCircle className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">{c.progress || 0}% completed</p>
+                  </div>
+                </div>
+                <div className="w-24 bg-muted/40 h-2 rounded-full overflow-hidden">
+                  <div className="bg-primary h-full rounded-full" style={{ width: `${c.progress || 0}%` }} />
                 </div>
               </div>
-              <span className="text-sm font-medium text-muted-foreground">{c.progress}%</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-xs text-muted-foreground space-y-1">
+            <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+            <p className="font-medium text-foreground">No enrolled courses yet</p>
+            <p>Explore the Courses page to start learning and track your progress here!</p>
+          </div>
+        )}
       </GlassCard>
     </div>
   );

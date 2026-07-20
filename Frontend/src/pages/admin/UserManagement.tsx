@@ -19,7 +19,7 @@ import api from "@/services/api";
 type User = {
   id: string; name: string; email: string; role: string;
   status: "active" | "inactive" | "suspended"; streak: number; points: number;
-  joined: string; avatar: string; suspendDays?: number;
+  joined: string; photoUrl: string | null; initials: string; suspendDays?: number;
   assignedMentor?: string | null;
 };
 
@@ -49,18 +49,27 @@ const UserManagement = () => {
       const roleFilter = filter === "all" ? "" : filter === "student" ? "user" : filter;
       const res = await api.get(`/admin/users?role=${roleFilter}&search=${search}`);
       if (res.data.success) {
-        const mapped = res.data.users.map((u: any) => ({
-          id: u.userId,
-          name: u.fullName,
-          email: u.email,
-          role: u.role,
-          status: u.isActive ? "active" : "inactive",
-          streak: u.streak || 0,
-          points: u.points || 0,
-          joined: u.joinDate || "2025-01-01",
-          avatar: u.avatar || u.fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase(),
-          assignedMentor: u.assignedMentor,
-        }));
+        const mapped = res.data.users.map((u: any) => {
+          const rawAvatar = u.avatar || u.profileImageUrl || "";
+          const isPhoto = Boolean(rawAvatar && (rawAvatar.startsWith("http://") || rawAvatar.startsWith("https://") || rawAvatar.startsWith("data:")));
+          const initials = u.fullName
+            ? u.fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+            : "U";
+
+          return {
+            id: u.userId,
+            name: u.fullName || u.name || "User",
+            email: u.email,
+            role: u.role,
+            status: u.isActive ? "active" : "inactive",
+            streak: u.streak || 0,
+            points: u.points || 0,
+            joined: u.joinDate || "2025-01-01",
+            photoUrl: isPhoto ? rawAvatar : null,
+            initials: isPhoto ? initials : (rawAvatar.length <= 3 && rawAvatar ? rawAvatar.toUpperCase() : initials),
+            assignedMentor: u.assignedMentor,
+          };
+        });
         setUsers(mapped);
       }
     } catch (err) {
@@ -212,12 +221,29 @@ const UserManagement = () => {
                   transition={{ delay: i * 0.04 }}
                   className="border-b border-border/50 hover:bg-muted/30 transition-colors"
                 >
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">{user.avatar}</div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                  <td className="p-4 min-w-[240px] max-w-[320px] whitespace-nowrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {user.photoUrl ? (
+                        <img
+                          src={user.photoUrl}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-full object-cover shrink-0 border border-white/10 shadow-md bg-slate-800"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-md">
+                          {user.initials}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate block leading-tight" title={user.name}>
+                          {user.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate block leading-tight mt-0.5" title={user.email}>
+                          {user.email}
+                        </p>
                       </div>
                     </div>
                   </td>

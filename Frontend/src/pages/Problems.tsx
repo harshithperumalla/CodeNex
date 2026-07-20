@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { problems, allTags, Problem } from "@/data/problems";
 import {
   Search, Bookmark, BookmarkCheck, CheckCircle2, Play, Eye, Flame, Star,
-  Code2, Brain, Sparkles, X, Building2, ChevronRight, Zap, Loader2, ExternalLink
+  Code2, Brain, Sparkles, X, Building2, ChevronRight, Zap, Loader2, ExternalLink, RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -312,6 +312,42 @@ const Problems = () => {
             <p className="text-sm text-white/50 mt-1">An AI-powered coding system • pick a challenge and start the run</p>
           </div>
           <div className="flex items-center gap-3">
+            {user?.isLeetCodeConnected ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  toast.loading("Syncing LeetCode progress...");
+                  try {
+                    const res = await api.post("/user/leetcode-sync");
+                    if (res.data && res.data.success) {
+                      setUser(res.data.user);
+                      fetchProblems();
+                      toast.dismiss();
+                      toast.success(res.data.message || "LeetCode synced!");
+                    } else {
+                      toast.dismiss();
+                      toast.error("Sync failed.");
+                    }
+                  } catch {
+                    toast.dismiss();
+                    toast.error("LeetCode sync failed.");
+                  }
+                }}
+                className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 gap-1.5 h-9 rounded-full"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Sync LeetCode (@{user.leetcodeUsername})
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate("/settings")}
+                className="text-xs border-amber-500/30 text-amber-300 hover:bg-amber-500/10 gap-1.5 h-9 rounded-full"
+              >
+                <Code2 className="w-3.5 h-3.5" /> Connect LeetCode
+              </Button>
+            )}
             <motion.div whileHover={{ scale: 1.05 }} className="flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-xl bg-white/5 border border-white/10">
               <Flame className="w-4 h-4 text-orange-400" />
               <span className="text-sm font-semibold text-white">{streak}</span>

@@ -180,6 +180,22 @@ const userSchema = new mongoose.Schema(
       default: "",
     },
 
+    leetcodeUsername: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    isLeetCodeConnected: {
+      type: Boolean,
+      default: false,
+    },
+
+    leetcodeLastSyncedAt: {
+      type: Date,
+      default: null,
+    },
+
     solvedProblems: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -295,6 +311,9 @@ userSchema.methods.toPublicProfile = function () {
     linkedin: this.linkedin,
     portfolio: this.portfolio,
     assignedMentor: this.assignedMentor,
+    leetcodeUsername: this.leetcodeUsername || "",
+    isLeetCodeConnected: Boolean(this.isLeetCodeConnected),
+    leetcodeLastSyncedAt: this.leetcodeLastSyncedAt ? this.leetcodeLastSyncedAt.toISOString() : null,
   };
 };
 

@@ -2,7 +2,7 @@ import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
 import {
-  Home, BarChart3, Code2, Brain, MessageSquare,
+  Home, BarChart3, Code2, Brain, MessageSquare, Sparkles,
   BookOpen, Gamepad2, Video, Trophy, Award, Settings, Keyboard, Lightbulb, UserRound, Users, Shield, GraduationCap
 } from "lucide-react";
 import { usePageTransition } from "@/contexts/PageTransitionContext";
@@ -90,15 +90,15 @@ const Sidebar = () => {
   );
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-[72px] lg:w-[220px] glass-strong z-50 flex flex-col items-center lg:items-stretch py-6 gap-1 overflow-y-auto">
-      <div className="flex items-center justify-center lg:justify-start lg:px-5 mb-6">
-        <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center">
+    <aside className="fixed left-0 top-0 h-full w-[72px] lg:w-[240px] glass-strong z-50 flex flex-col items-center lg:items-stretch py-6 gap-1 overflow-y-auto border-r border-border/50">
+      <div className="flex items-center justify-center lg:justify-start lg:px-5 mb-6 shrink-0">
+        <div className="w-9 h-9 rounded-lg gradient-primary flex items-center justify-center shrink-0">
           <Code2 className="w-5 h-5 text-primary-foreground" />
         </div>
-        <span className="hidden lg:block ml-3 font-bold text-lg gradient-text">CodeNex</span>
+        <span className="hidden lg:block ml-3 font-bold text-lg gradient-text whitespace-nowrap">CodeNex</span>
       </div>
 
-      <nav className="flex flex-col gap-1 flex-1 w-full px-2 lg:px-3">
+      <nav className="flex flex-col gap-1 flex-1 w-full px-2 lg:px-3.5">
         {dynamicNavItems.map((item) => {
           const isActive = location.pathname === item.to;
           return (
@@ -106,18 +106,18 @@ const Sidebar = () => {
               key={item.to}
               href={item.to}
               onClick={(e) => handleClick(e, item.to, item.label)}
-              className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer"
+              className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 lg:px-3.5 rounded-xl transition-all group cursor-pointer overflow-hidden"
               style={{ perspective: "600px" }}
             >
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-lg gradient-primary opacity-20"
+                  className="absolute inset-0 rounded-xl gradient-primary opacity-20 z-0 pointer-events-none"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
-              <item.icon className={`w-5 h-5 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
-              <span className={`hidden lg:block text-sm font-medium transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+              <item.icon className={`w-5 h-5 relative z-10 shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
+              <span className={`hidden lg:block relative z-10 text-sm font-medium whitespace-nowrap transition-colors ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground group-hover:text-foreground'}`}>
                 {item.label}
               </span>
               {renderFloatingLabel(item.label, activeLabel === item.label)}
@@ -126,15 +126,15 @@ const Sidebar = () => {
         })}
       </nav>
 
-      <div className="px-2 lg:px-3 mt-auto flex flex-col gap-1">
+      <div className="px-2 lg:px-3.5 mt-auto flex flex-col gap-1 shrink-0">
         <a
           href="/settings"
           onClick={(e) => handleClick(e, "/settings", "Settings")}
-          className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 lg:px-3.5 rounded-xl text-muted-foreground hover:text-foreground transition-colors cursor-pointer overflow-hidden"
           style={{ perspective: "600px" }}
         >
-          <Settings className="w-5 h-5" />
-          <span className="hidden lg:block text-sm font-medium">Settings</span>
+          <Settings className="w-5 h-5 relative z-10 shrink-0" />
+          <span className="hidden lg:block relative z-10 text-sm font-medium whitespace-nowrap">Settings</span>
           {renderFloatingLabel("Settings", activeLabel === "Settings")}
         </a>
       </div>

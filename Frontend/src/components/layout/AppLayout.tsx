@@ -43,7 +43,7 @@ const AppLayout = () => {
         <NotificationBell />
         <ProfileDropdown />
       </div>
-      <main className="ml-[72px] lg:ml-[220px] min-h-screen p-4 lg:p-6 relative z-10">
+      <main className="ml-[72px] lg:ml-[240px] min-h-screen p-4 lg:p-6 relative z-10">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0 }}

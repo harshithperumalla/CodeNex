@@ -1,95 +1,185 @@
+import React, { useState, useRef, useEffect, useMemo, Component, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, X, Send, Sparkles, Loader2, Code2, Brain, BookOpen, Lightbulb, ExternalLink } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import {
+  MessageCircle,
+  X,
+  Send,
+  Sparkles,
+  Loader2,
+  Code2,
+  Brain,
+  Lightbulb,
+  Maximize2,
+  Minimize2,
+  Plus,
+  Trash2,
+  Search,
+  Copy,
+  Check,
+  Download,
+  Paperclip,
+  Mic,
+  MicOff,
+  FileText,
+  FileCode,
+  Bot,
+  History,
+  Briefcase,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
 
-type Message = { role: "user" | "assistant"; content: string };
+interface Attachment {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  snippet: string;
+}
 
-// Simple inline parser for **bold** and `code`
+interface Message {
+  id?: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  attachments?: Attachment[];
+  timestamp?: string;
+  isStreaming?: boolean;
+}
+
+interface Session {
+  id: string;
+  _id?: string;
+  title: string;
+  provider?: string;
+  lastMessage?: string;
+  messagesCount?: number;
+  createdAt?: string;
+}
+
+// React Error Boundary for the AI Chat Assistant
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ChatErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("CodeNex AI Chat Error Boundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 text-center text-xs text-foreground space-y-3 bg-black/80 rounded-2xl border border-rose-500/30">
+          <div className="w-10 h-10 rounded-full bg-rose-500/20 flex items-center justify-center mx-auto text-rose-400">
+            <RefreshCw className="w-5 h-5 animate-spin" />
+          </div>
+          <h4 className="font-semibold text-sm">CodeNex AI Assistant Recovered</h4>
+          <p className="text-muted-foreground text-[11px]">
+            A temporary display error occurred. Click below to reset the interface.
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="px-3 py-1.5 rounded-lg gradient-primary text-primary-foreground font-semibold text-xs"
+          >
+            Reset Chat Window
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Helper for formatting inline markdown
 const parseInlineStyles = (text: string) => {
+  if (!text || typeof text !== "string") return "";
   let html = text;
-  // bold **text**
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>');
-  // inline code `text`
-  html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-black/40 font-mono text-[11px] text-cyan-300">$1</code>');
+  html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-black/50 font-mono text-[11px] text-cyan-300 border border-white/10">$1</code>');
   return html;
 };
 
-const Markdown = ({ content }: { content: string }) => {
-  // Split by code blocks
+// Isolated CodeBlock component adhering strictly to React Rules of Hooks
+const CodeBlock = ({ code, lang }: { code: string; lang: string }) => {
+  const [copied, setCopied] = useState(false);
+  const safeCode = code || "";
+  const safeLang = lang || "code";
+
+  return (
+    <div className="relative rounded-lg bg-black/80 border border-white/10 my-2 overflow-hidden font-mono text-xs shadow-lg">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 text-[10px] text-muted-foreground border-b border-white/10">
+        <span className="font-semibold text-neon-cyan uppercase">{safeLang}</span>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(safeCode);
+            setCopied(true);
+            toast.success("Code copied!");
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          className="flex items-center gap-1 hover:text-foreground transition-colors px-1.5 py-0.5 rounded bg-white/10 text-[10px]"
+        >
+          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          {copied ? "Copied" : "Copy Code"}
+        </button>
+      </div>
+      <pre className="p-3 overflow-x-auto text-cyan-300 leading-relaxed font-mono">
+        <code>{safeCode}</code>
+      </pre>
+    </div>
+  );
+};
+
+const MarkdownViewer = ({ content }: { content: string }) => {
+  if (!content || typeof content !== "string") return null;
+
   const parts = content.split("```");
+
   return (
     <div className="space-y-2">
       {parts.map((part, index) => {
         const isCode = index % 2 === 1;
         if (isCode) {
-          // Extract language
-          const lines = part.split("\n");
-          const lang = lines[0].trim();
+          const lines = (part || "").split("\n");
+          const lang = lines[0].trim() || "code";
           const code = lines.slice(1).join("\n").trim();
-          
-          return (
-            <div key={index} className="relative rounded-lg bg-black/60 border border-white/10 my-2 overflow-hidden font-mono text-xs">
-              <div className="flex items-center justify-between px-3 py-1.5 bg-white/5 text-[10px] text-muted-foreground border-b border-white/5">
-                <span>{lang || "code"}</span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(code);
-                    toast.success("Copied to clipboard!");
-                  }}
-                  className="hover:text-foreground transition-colors font-sans px-1.5 py-0.5 rounded bg-white/10"
-                >
-                  Copy
-                </button>
-              </div>
-              <pre className="p-3 overflow-x-auto text-cyan-300 leading-relaxed max-w-full">
-                <code>{code}</code>
-              </pre>
-            </div>
-          );
+          return <CodeBlock key={index} code={code} lang={lang} />;
         }
-        
-        // Handle lists, inline code, bold text, tables
+
         return (
           <div key={index} className="space-y-1.5">
-            {part.split("\n").map((line, lIdx) => {
-              let trimmed = line.trim();
+            {(part || "").split("\n").map((line, lIdx) => {
+              const trimmed = (line || "").trim();
               if (!trimmed) return <div key={lIdx} className="h-1.5" />;
-              
-              // Tables
-              if (trimmed.startsWith("|")) {
-                const cells = trimmed.split("|").map(c => c.trim()).filter(Boolean);
-                if (cells.some(c => c.startsWith("-"))) return null; // skip separator row
-                return (
-                  <div key={lIdx} className="grid grid-flow-col auto-cols-fr gap-2 bg-white/5 p-2 rounded text-xs border border-white/5">
-                    {cells.map((cell, cIdx) => (
-                      <div key={cIdx} className="font-semibold text-foreground truncate">{cell}</div>
-                    ))}
-                  </div>
-                );
+
+              if (trimmed.startsWith("### ")) {
+                return <h4 key={lIdx} className="text-xs font-bold text-foreground mt-2 mb-1">{trimmed.slice(4)}</h4>;
+              }
+              if (trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
+                return <h3 key={lIdx} className="text-sm font-bold gradient-text mt-3 mb-1">{trimmed.slice(trimmed.startsWith("## ") ? 3 : 2)}</h3>;
               }
 
-              // Headings
-              if (trimmed.startsWith("### ")) {
-                return <h4 key={lIdx} className="text-sm font-bold text-foreground mt-2 mb-1">{trimmed.slice(4)}</h4>;
-              }
-              if (trimmed.startsWith("## ")) {
-                return <h3 key={lIdx} className="text-base font-bold text-foreground mt-3 mb-1.5">{trimmed.slice(3)}</h3>;
-              }
-              
-              // Lists
               if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("• ")) {
                 const listText = trimmed.slice(2);
                 return (
-                  <div key={lIdx} className="flex gap-1.5 pl-2 text-xs text-muted-foreground">
-                    <span>•</span>
+                  <div key={lIdx} className="flex gap-1.5 pl-2 text-xs text-muted-foreground leading-relaxed">
+                    <span className="text-neon-cyan">•</span>
                     <span dangerouslySetInnerHTML={{ __html: parseInlineStyles(listText) }} />
                   </div>
                 );
               }
 
-              // Default text
               return (
                 <p
                   key={lIdx}
@@ -105,69 +195,16 @@ const Markdown = ({ content }: { content: string }) => {
   );
 };
 
-const quickReplies = [
-  "Explain Big O notation",
-  "Help with arrays in Java",
-  "Tips for aptitude exams",
-  "Common English mistakes",
+// Quick action categories
+const quickPrompts = [
+  { label: "Debug Code", icon: Code2, prompt: "Help me debug this issue in my code" },
+  { label: "DSA Strategy", icon: Brain, prompt: "Explain the Sliding Window pattern with an example" },
+  { label: "Aptitude Trick", icon: Lightbulb, prompt: "Shortcut for Time & Work aptitude problems" },
+  { label: "Interview Prep", icon: Briefcase, prompt: "Top HR interview questions & STAR method answers" },
 ];
 
-const topicResponses: Record<string, string> = {
-  // DSA & Coding
-  "big o": "📐 **Big O Notation Explained:**\n\nBig O describes the **worst-case time complexity** of an algorithm.\n\n• **O(1)** — Constant: Array access by index\n• **O(log n)** — Logarithmic: Binary search\n• **O(n)** — Linear: Single loop\n• **O(n log n)** — Merge sort, Quick sort\n• **O(n²)** — Nested loops: Bubble sort\n• **O(2ⁿ)** — Exponential: Recursive Fibonacci\n\n💡 **Pro tip:** Always aim to reduce nested loops!",
-  "array": "📦 **Arrays – Key Concepts:**\n\n**Java Arrays:**\n```\nint[] arr = new int[5];\nint[] arr = {1, 2, 3, 4, 5};\n```\n\n**Common Operations:**\n• Access: O(1)\n• Search: O(n)\n• Insert at end: O(1) amortized\n• Insert at index: O(n)\n\n**Must-know patterns:**\n1. Two Pointer technique\n2. Sliding Window\n3. Prefix Sum\n4. Kadane's Algorithm\n\n🔥 Practice: Start with LeetCode Easy array problems!",
-  "linked list": "🔗 **Linked List Fundamentals:**\n\n**Types:**\n• Singly Linked List → each node points to next\n• Doubly Linked List → points to next & prev\n• Circular Linked List → last node points to head\n\n**Key Operations:**\n• Insert at head: O(1)\n• Insert at tail: O(n) or O(1) with tail pointer\n• Delete: O(n)\n• Search: O(n)\n\n**Common Interview Questions:**\n1. Reverse a linked list\n2. Detect cycle (Floyd's algorithm)\n3. Merge two sorted lists\n4. Find middle element",
-  "recursion": "🔄 **Recursion Made Simple:**\n\nEvery recursive function needs:\n1. **Base case** — When to stop\n2. **Recursive case** — Call itself with smaller input\n\n```\nint factorial(int n) {\n  if (n <= 1) return 1;       // base case\n  return n * factorial(n-1);   // recursive case\n}\n```\n\n**How to think recursively:**\n• Trust that the recursive call works\n• Focus on one step at a time\n• Draw the call stack on paper\n\n💡 Common patterns: Tree traversal, Backtracking, Divide & Conquer",
-  "sort": "📊 **Sorting Algorithms Comparison:**\n\n| Algorithm | Time (Avg) | Space | Stable |\n|-----------|-----------|-------|--------|\n| Bubble | O(n²) | O(1) | ✅ |\n| Selection | O(n²) | O(1) | ❌ |\n| Insertion | O(n²) | O(1) | ✅ |\n| Merge | O(n log n) | O(n) | ✅ |\n| Quick | O(n log n) | O(log n) | ❌ |\n| Heap | O(n log n) | O(1) | ❌ |\n\n🎯 **Interview tip:** Know when to use which!",
-  "tree": "🌳 **Tree Data Structure:**\n\n**Binary Tree Traversals:**\n• Inorder (L-Root-R): Gives sorted order in BST\n• Preorder (Root-L-R): Used to copy trees\n• Postorder (L-R-Root): Used to delete trees\n• Level order: BFS using queue\n\n**BST Properties:**\n• Left child < Parent < Right child\n• Search/Insert/Delete: O(h) where h = height\n• Balanced BST: h = O(log n)\n\n**Must-know:** AVL trees, Red-Black trees for interviews",
-  "dynamic programming": "⚡ **Dynamic Programming (DP):**\n\n**Steps to solve any DP problem:**\n1. Identify overlapping subproblems\n2. Define the state (what changes?)\n3. Write the recurrence relation\n4. Choose: Top-down (memoization) or Bottom-up (tabulation)\n\n**Classic DP Problems:**\n• Fibonacci → O(n) with DP\n• 0/1 Knapsack\n• Longest Common Subsequence\n• Coin Change\n• Edit Distance\n\n💡 Start with top-down, then optimize to bottom-up!",
-  "graph": "🕸️ **Graph Algorithms:**\n\n**Representations:**\n• Adjacency Matrix: O(V²) space\n• Adjacency List: O(V+E) space ✅\n\n**Must-know Algorithms:**\n1. **BFS** — Shortest path (unweighted)\n2. **DFS** — Cycle detection, topological sort\n3. **Dijkstra** — Shortest path (weighted)\n4. **Bellman-Ford** — Negative weights\n5. **Kruskal/Prim** — Minimum spanning tree\n\n🎯 Practice: Islands problems, shortest path, cycle detection",
-  "string": "📝 **String Problems Guide:**\n\n**Key Techniques:**\n1. **Two Pointers** — Palindrome check\n2. **Sliding Window** — Longest substring problems\n3. **HashMap** — Character frequency\n4. **KMP/Rabin-Karp** — Pattern matching\n\n**Java String Tips:**\n• Strings are immutable → use StringBuilder\n• `.equals()` not `==` for comparison\n• `.charAt(i)` for access, `.substring()` for slice\n\n🔥 Top problems: Anagram check, longest palindromic substring, string compression",
-
-  // Aptitude
-  "aptitude": "🧮 **Aptitude Exam Tips:**\n\n**Key Topics to Master:**\n1. **Number System** — HCF, LCM, divisibility\n2. **Percentages & Profit/Loss**\n3. **Time & Work / Speed & Distance**\n4. **Probability & Permutations**\n5. **Logical Reasoning**\n\n**Speed Tricks:**\n• Learn Vedic math multiplications\n• Memorize squares up to 30\n• Use approximation for complex calculations\n• Practice 50 problems daily\n\n📈 Companies: TCS, Infosys, Wipro all test these!",
-  "percentage": "📊 **Percentage Shortcuts:**\n\n**Key Formulas:**\n• X% of Y = Y% of X\n• Increase: New = Original × (1 + %/100)\n• Decrease: New = Original × (1 - %/100)\n• % Change = (Difference/Original) × 100\n\n**Tricks:**\n• 10% = divide by 10\n• 5% = half of 10%\n• 15% = 10% + 5%\n• 20% = divide by 5\n• 25% = divide by 4\n\n📝 **Example:** 35% of 240?\n→ 30% = 72, 5% = 12 → Answer = 84",
-  "probability": "🎲 **Probability Essentials:**\n\n**P(Event) = Favorable / Total outcomes**\n\n**Key Rules:**\n• P(A or B) = P(A) + P(B) - P(A∩B)\n• P(A and B) = P(A) × P(B) [if independent]\n• P(not A) = 1 - P(A)\n\n**Common Problems:**\n1. Dice → Total outcomes = 6ⁿ\n2. Cards → Total = 52 (13×4 suits)\n3. Coins → Total = 2ⁿ\n\n💡 **Tip:** Draw tree diagrams for complex problems!",
-  "time and work": "⏰ **Time & Work Shortcuts:**\n\n**Core Concept:** If A does work in 'a' days:\n→ A's 1 day work = 1/a\n\n**Combined work:**\n→ 1/a + 1/b = (a+b)/(a×b)\n→ Together they finish in: (a×b)/(a+b) days\n\n**LCM Method (Faster!):**\n1. Take LCM of given days\n2. Find efficiency of each worker\n3. Total work ÷ combined efficiency = answer\n\n**Example:** A in 10 days, B in 15 days, together?\n→ LCM = 30, A = 3/day, B = 2/day\n→ 30 ÷ 5 = **6 days** ✅",
-
-  // English
-  "english": "📚 **Common English Mistakes to Avoid:**\n\n**Grammar:**\n1. ❌ \"He don't\" → ✅ \"He doesn't\"\n2. ❌ \"Me and him went\" → ✅ \"He and I went\"\n3. ❌ \"More better\" → ✅ \"Better\"\n4. ❌ \"Could of\" → ✅ \"Could have\"\n\n**Vocabulary Boosters:**\n• Read 15 mins daily (news articles)\n• Learn 5 new words daily with context\n• Use Anki flashcards for retention\n\n**Communication Tips:**\n• STAR method for interviews\n• Avoid filler words (um, like, basically)\n• Practice tongue twisters for fluency",
-  "tense": "⏳ **English Tenses Made Simple:**\n\n**Present:**\n• Simple: I write code\n• Continuous: I am writing code\n• Perfect: I have written code\n\n**Past:**\n• Simple: I wrote code\n• Continuous: I was writing code\n• Perfect: I had written code\n\n**Future:**\n• Simple: I will write code\n• Continuous: I will be writing code\n• Perfect: I will have written code\n\n💡 **Key Rule:** Don't mix tenses in the same sentence!",
-  "vocabulary": "📖 **Power Words for Interviews:**\n\n**Action Verbs:**\n• Spearheaded, Orchestrated, Implemented\n• Streamlined, Optimized, Pioneered\n• Collaborated, Mentored, Facilitated\n\n**Technical Terms:**\n• Scalable, Robust, Modular\n• Agile, Sprint, Pipeline\n• Deploy, Iterate, Refactor\n\n**Daily Practice:**\n1. Read one article → note 5 new words\n2. Use each word in a sentence\n3. Review last week's words\n4. Teach someone → best retention!\n\n🎯 Goal: 50 new words per month",
-  "interview": "🎤 **Interview Communication Tips:**\n\n**STAR Method for Answers:**\n• **S**ituation — Set the context\n• **T**ask — What was your role?\n• **A**ction — What did you do?\n• **R**esult — What was the outcome?\n\n**Body Language:**\n• Maintain eye contact (60-70%)\n• Sit upright, lean slightly forward\n• Use hand gestures naturally\n• Smile genuinely\n\n**Common Mistakes:**\n❌ Speaking too fast\n❌ Not asking questions back\n❌ Badmouthing previous employer\n❌ Saying \"I don't know\" without trying",
-
-  // General coding
-  "java": "☕ **Java Quick Reference:**\n\n**Data Types:** int, long, float, double, boolean, char, String\n\n**Collections Framework:**\n• ArrayList → Dynamic array\n• LinkedList → Doubly linked\n• HashMap → Key-value O(1)\n• HashSet → Unique elements\n• PriorityQueue → Min heap\n• Stack, Queue → LIFO/FIFO\n\n**OOP Pillars:**\n1. Encapsulation\n2. Inheritance\n3. Polymorphism\n4. Abstraction\n\n🔥 Java is #1 for placements. Master Collections!",
-  "python": "🐍 **Python Essentials:**\n\n**Why Python for CP?**\n• Concise syntax\n• Built-in data structures\n• Powerful libraries\n\n**Key Features:**\n```python\n# List comprehension\nsquares = [x**2 for x in range(10)]\n\n# Dictionary\nd = {k: v for k, v in pairs}\n\n# Lambda\nsorted(arr, key=lambda x: x[1])\n```\n\n**Useful Libraries:**\n• collections (Counter, deque, defaultdict)\n• itertools (permutations, combinations)\n• heapq (priority queue)\n\n⚠️ Note: Python is slower for competitive programming",
-  "react": "⚛️ **React Fundamentals:**\n\n**Core Concepts:**\n1. **Components** — Reusable UI blocks\n2. **Props** — Data passed parent→child\n3. **State** — Component's internal data\n4. **Hooks** — useState, useEffect, useRef\n\n**Best Practices:**\n• Keep components small & focused\n• Lift state up when shared\n• Use useCallback/useMemo wisely\n• Always provide key prop in lists\n\n**Project Ideas:**\n• Todo app → CRUD basics\n• Weather app → API calls\n• E-commerce → State management\n\n🚀 React + TypeScript = 💪",
-  "sql": "🗄️ **SQL for Interviews:**\n\n**Essential Commands:**\n```sql\nSELECT * FROM users WHERE age > 25;\nINSERT INTO users VALUES (...);\nUPDATE users SET name='X' WHERE id=1;\nDELETE FROM users WHERE id=1;\n```\n\n**Key Concepts:**\n• JOINs: INNER, LEFT, RIGHT, FULL\n• GROUP BY + HAVING\n• Subqueries & CTEs\n• Indexes for performance\n• Normalization (1NF, 2NF, 3NF)\n\n**Top Interview Questions:**\n1. Find 2nd highest salary\n2. Duplicate rows\n3. Running totals\n4. Employee-Manager hierarchy",
-};
-
-function getResponse(input: string): string {
-  const lower = input.toLowerCase();
-  
-  // Check for topic matches
-  for (const [key, response] of Object.entries(topicResponses)) {
-    if (lower.includes(key)) return response;
-  }
-
-  // Fallback contextual responses
-  if (lower.includes("help") || lower.includes("how")) {
-    return "🤔 I can help with:\n\n**💻 Coding & DSA:**\n• Arrays, Linked Lists, Trees, Graphs\n• Sorting, Searching, DP\n• Java, Python, React, SQL\n\n**🧮 Aptitude:**\n• Percentages, Probability\n• Time & Work, Speed & Distance\n• Logical Reasoning\n\n**📚 English & Communication:**\n• Grammar, Vocabulary, Tenses\n• Interview tips, STAR method\n\nJust ask your specific question! 🚀";
-  }
-
-  if (lower.includes("thank")) {
-    return "😊 You're welcome! Keep learning, keep coding! 🚀\n\nFeel free to ask anything anytime. Your consistency is what matters most!";
-  }
-
-  if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) {
-    return "👋 Hey there! I'm your **CodeNex AI Mentor**.\n\nI can help with:\n• 💻 DSA & Coding doubts\n• 🧮 Aptitude shortcuts\n• 📚 English & interview prep\n\nWhat topic would you like to explore?";
-  }
-
-  return "🤖 I'm here to help with your learning journey!\n\n**Try asking about:**\n• \"Explain recursion\"\n• \"Tips for aptitude exams\"\n• \"Common English mistakes\"\n• \"Java collections\"\n• \"Dynamic programming\"\n• \"Interview communication tips\"\n\nOr ask any specific coding/aptitude/English question! 💡";
-}
-
 const getCurrentProblemContext = () => {
+  if (typeof window === "undefined") return null;
   const data = localStorage.getItem("arena.currentProblem");
   if (!data) return null;
   try {
@@ -177,82 +214,265 @@ const getCurrentProblemContext = () => {
   }
 };
 
-function getOfflineFallback(input: string, activeProblem: any): string {
-  const lower = input.toLowerCase();
-  if (activeProblem) {
-    if (lower.includes("hint")) {
-      const hint = activeProblem.hints?.[0] || "Break the problem down into smaller subproblems. Think about the base cases first.";
-      return `💡 **AI Mentor Hint for "${activeProblem.title}":**\n\n${hint}\n\n*Try to trace the logic with a small input!*`;
-    }
-    if (lower.includes("explain") || lower.includes("dry run") || lower.includes("walkthrough")) {
-      const explanation = activeProblem.explanation || "Let's trace the execution on Example 1. Track the variables step-by-step to see how they evolve.";
-      return `🔄 **Explanation & Walkthrough for "${activeProblem.title}":**\n\n${explanation}`;
-    }
-    if (lower.includes("complexity") || lower.includes("big o") || lower.includes("time") || lower.includes("space")) {
-      return `⏱️ **Complexity Analysis for "${activeProblem.title}":**\n\nFor this problem, the optimal targets are:\n• **Time Complexity:** O(N) linear time\n• **Space Complexity:** O(N) or O(1) auxiliary space\n\nCan you think of a way to achieve this using a Hash Map or Two Pointers?`;
-    }
-    if (lower.includes("solution") || lower.includes("code") || lower.includes("reveal")) {
-      const sol = activeProblem.solutions?.javascript || activeProblem.starterCode?.javascript || "// Solution under construction.";
-      return `🔑 **Reference Solution for "${activeProblem.title}":**\n\nHere is the Javascript implementation:\n\`\`\`javascript\n${sol}\n\`\`\``;
-    }
-  }
-  return getResponse(input);
-}
+const DEFAULT_WELCOME_MESSAGE: Message = {
+  id: "msg-welcome",
+  role: "assistant",
+  content: "👋 Hi! I am **CodeNex AI**, your dedicated AI Coding & Career Mentor.\n\nAsk me about **Coding, DSA, Debugging, Aptitude, English Communication, Resume Review, or HR & Technical Interviews**! 🚀",
+};
 
-const AIChatButton = () => {
+const AIChatContent = () => {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "👋 Hi! I'm your **CodeNex AI Mentor**.\n\nAsk me about DSA, coding, aptitude, or English — I'll help you ace it! 🚀" }
-  ]);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false);
+
+  // Sessions & Messages State
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([DEFAULT_WELCOME_MESSAGE]);
+
   const [input, setInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [typingText, setTypingText] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, typingText, loading]);
 
-  const send = async (text: string) => {
-    if (!text.trim() || loading) return;
-    const userMsg: Message = { role: "user", content: text.trim() };
-    setMessages(prev => [...prev, userMsg]);
+  // Fetch Sessions
+  const fetchSessions = async () => {
+    try {
+      const res = await api.get("/codenex-ai/sessions");
+      if (res.data && res.data.success && Array.isArray(res.data.sessions)) {
+        setSessions(res.data.sessions);
+      }
+    } catch (err) {
+      console.log("Session fetch fallback");
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      fetchSessions();
+    }
+  }, [open]);
+
+  // Load Session History
+  const loadSession = async (sId: string) => {
+    if (!sId) return;
+    setCurrentSessionId(sId);
+    try {
+      const res = await api.get(`/codenex-ai/session/${sId}`);
+      if (res.data && res.data.success && res.data.session) {
+        setMessages(res.data.session.messages || [DEFAULT_WELCOME_MESSAGE]);
+      }
+    } catch (err) {
+      console.log("Could not load session details");
+    }
+  };
+
+  // Start New Chat Session
+  const handleNewChat = async () => {
+    try {
+      const res = await api.post("/codenex-ai/session", { title: "New Conversation" });
+      if (res.data && res.data.success && res.data.session) {
+        const newS = res.data.session;
+        setSessions((prev) => [{ id: newS._id, title: newS.title }, ...(prev || [])]);
+        setCurrentSessionId(newS._id);
+        setMessages(newS.messages || [DEFAULT_WELCOME_MESSAGE]);
+      } else {
+        setCurrentSessionId(null);
+        setMessages([DEFAULT_WELCOME_MESSAGE]);
+      }
+    } catch (err) {
+      setCurrentSessionId(null);
+      setMessages([DEFAULT_WELCOME_MESSAGE]);
+    }
+  };
+
+  // Delete Session
+  const handleDeleteSession = async (sId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!sId) return;
+    try {
+      await api.delete(`/codenex-ai/session/${sId}`);
+      const updated = (sessions || []).filter((s) => (s.id || s._id) !== sId);
+      setSessions(updated);
+      if (currentSessionId === sId) {
+        handleNewChat();
+      }
+      toast.success("Conversation deleted");
+    } catch (err) {
+      toast.error("Failed to delete conversation");
+    }
+  };
+
+  // File Upload Handling
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const newAttachment: Attachment = {
+        fileName: file.name,
+        fileType: file.type || "text/plain",
+        fileSize: file.size,
+        snippet: text ? text.slice(0, 3000) : "",
+      };
+      setAttachments((prev) => [...(prev || []), newAttachment]);
+      toast.success(`Attached ${file.name}`);
+    };
+
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Speech-to-Text Voice Dictation
+  const toggleSpeechInput = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error("Speech recognition not supported in browser.");
+      return;
+    }
+
+    if (recording) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      setRecording(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => setRecording(true);
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setInput(transcript);
+      };
+      recognition.onerror = () => setRecording(false);
+      recognition.onend = () => setRecording(false);
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      setRecording(false);
+    }
+  };
+
+  // Typing stream animation effect
+  const simulateTypingStream = (fullText: string, msgId: string) => {
+    if (!fullText) return;
+    let currentLength = 0;
+    const speed = 12;
+    setTypingText("");
+
+    const interval = setInterval(() => {
+      currentLength += Math.floor(Math.random() * 4) + 2;
+      if (currentLength >= fullText.length) {
+        currentLength = fullText.length;
+        clearInterval(interval);
+        setMessages((prev) =>
+          (prev || []).map((m) => (m.id === msgId ? { ...m, content: fullText, isStreaming: false } : m))
+        );
+        setTypingText("");
+      } else {
+        const chunk = fullText.slice(0, currentLength);
+        setTypingText(chunk);
+      }
+    }, speed);
+  };
+
+  // Send Message
+  const send = async (textPromptToSend?: string) => {
+    const textPrompt = (textPromptToSend || input).trim();
+    if ((!textPrompt && attachments.length === 0) || loading) return;
+
+    const userMsgId = `msg-${Date.now()}-u`;
+    const userMsg: Message = {
+      id: userMsgId,
+      role: "user",
+      content: textPrompt || "Analyze attached file",
+      attachments: [...(attachments || [])],
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...(prev || []), userMsg]);
     setInput("");
+    const currentAttachments = [...(attachments || [])];
+    setAttachments([]);
     setLoading(true);
 
     try {
       const activeProblem = getCurrentProblemContext();
-      let historyToSend = [...messages, userMsg];
+      const res = await api.post("/codenex-ai/chat", {
+        sessionId: currentSessionId,
+        prompt: textPrompt,
+        attachments: currentAttachments,
+        activeProblemContext: activeProblem ? activeProblem.title : undefined,
+      });
 
-      if (activeProblem) {
-        // Prepend context to help Gemini understand the problem
-        const contextMsg = {
-          role: "user" as const,
-          content: `SYSTEM INSTRUCTION: You are an encouraging AI Coding Mentor on CodeNex. The user is currently viewing the problem: "${activeProblem.title}" (Difficulty: ${activeProblem.difficulty}).\nDescription: ${activeProblem.description}\nConstraints: ${activeProblem.constraints?.join(", ") || "None"}\nExamples: ${JSON.stringify(activeProblem.examples || [])}\nTarget Complexity: ${activeProblem.timeComplexity || "optimized"}.\n\nRules:\n1. The user might ask for hints, explanations, complexity analysis, dry runs, debugging guidance, or concepts.\n2. Do NOT reveal the full solution code unless the user explicitly requests it.\n3. Keep responses structured and educational.`
-        };
-        const ackMsg = {
-          role: "assistant" as const,
-          content: `Understood! I am now acting as the AI Mentor for the problem "${activeProblem.title}". I will provide hints, explanations, complexities, dry runs, and guidance without revealing the full solution code unless explicitly requested.`
-        };
-        historyToSend = [contextMsg, ackMsg, ...historyToSend];
-      }
-
-      const res = await api.post("/chatbot/chat", { messages: historyToSend });
       if (res.data && res.data.success) {
-        setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
+        if (res.data.sessionId && res.data.sessionId !== currentSessionId) {
+          setCurrentSessionId(res.data.sessionId);
+          fetchSessions();
+        }
+
+        const replyContent = res.data.reply || "CodeNex AI Response Ready.";
+        const assistantMsgId = res.data.message?.id || `msg-${Date.now()}-a`;
+
+        const assistantMsg: Message = {
+          id: assistantMsgId,
+          role: "assistant",
+          content: "",
+          isStreaming: true,
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages((prev) => [...(prev || []), assistantMsg]);
+        simulateTypingStream(replyContent, assistantMsgId);
       } else {
-        const reply = getOfflineFallback(text, activeProblem);
-        setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+        throw new Error("Invalid response");
       }
     } catch (err) {
-      console.error("AI chat error:", err);
-      const activeProblem = getCurrentProblemContext();
-      const reply = getOfflineFallback(text, activeProblem);
-      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      console.error("CodeNex AI Chat error:", err);
+      const fallbackReply = "👋 **CodeNex AI**: I can assist with Coding, DSA, Debugging, Aptitude, English Communication, and Resume Review. Please try asking your specific question!";
+      const assistantMsgId = `msg-${Date.now()}-a`;
+
+      setMessages((prev) => [
+        ...(prev || []),
+        {
+          id: assistantMsgId,
+          role: "assistant",
+          content: fallbackReply,
+          isStreaming: false,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
+  // Event listener for opening AI mentor with custom prompts
   useEffect(() => {
     const handler = (e: Event) => {
       const custom = e as CustomEvent;
@@ -265,145 +485,363 @@ const AIChatButton = () => {
     return () => window.removeEventListener("open-ai-mentor", handler);
   }, [messages, loading]);
 
+  // Export Chat to Markdown
+  const handleExportChat = () => {
+    if (!messages || messages.length === 0) return;
+    const text = messages
+      .map((m) => `### ${m.role === "user" ? "User" : "CodeNex AI"}\n${m.content}\n`)
+      .join("\n---\n\n");
+    const blob = new Blob([text], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `codenex-ai-chat-${Date.now()}.md`;
+    a.click();
+    toast.success("Chat exported as Markdown!");
+  };
+
+  const filteredSessions = useMemo(() => {
+    if (!Array.isArray(sessions)) return [];
+    if (!searchQuery.trim()) return sessions;
+    return sessions.filter((s) => s && s.title && typeof s.title === "string" && s.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [sessions, searchQuery]);
+
   return (
     <>
+      {/* FLOATING TRIGGER BUTTON */}
       <motion.button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full gradient-primary flex items-center justify-center neon-glow-purple cursor-pointer"
+        className="fixed bottom-6 right-6 z-[100] w-14 h-14 rounded-full gradient-primary flex items-center justify-center neon-glow-purple cursor-pointer shadow-2xl"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
-        animate={{ y: [0, -5, 0] }}
-        transition={{ y: { repeat: Infinity, duration: 2 } }}
+        animate={{ y: [0, -4, 0] }}
+        transition={{ y: { repeat: Infinity, duration: 2.5 } }}
+        title="Open CodeNex AI Assistant"
       >
         {open ? <X className="w-6 h-6 text-primary-foreground" /> : <MessageCircle className="w-6 h-6 text-primary-foreground" />}
       </motion.button>
 
+      {/* CHATGPT-STYLE ASSISTANT POPUP MODAL */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+            initial={{ opacity: 0, y: 20, scale: 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-24 right-6 z-50 w-[380px] h-[520px] glass-strong rounded-2xl flex flex-col overflow-hidden neon-glow-purple"
+            exit={{ opacity: 0, y: 20, scale: 0.92 }}
+            className={`fixed z-[100] bg-background/95 backdrop-blur-2xl border border-border/80 text-foreground rounded-2xl flex flex-col overflow-hidden neon-glow-purple shadow-2xl transition-all duration-300 ${
+              isExpanded
+                ? "bottom-6 right-6 left-6 top-6 sm:bottom-8 sm:right-8 sm:left-8 sm:top-8 w-auto h-auto max-w-none max-h-none"
+                : "bottom-24 right-6 w-[92vw] sm:w-[460px] h-[620px] max-h-[85vh]"
+            }`}
           >
-            {/* Header */}
-            <div className="p-4 border-b border-border gradient-primary">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-primary-foreground" />
+            {/* HEADER BAR */}
+            <div className="p-3.5 border-b border-border/60 gradient-primary flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setShowHistorySidebar(!showHistorySidebar)}
+                  className="p-1 rounded hover:bg-white/10 text-primary-foreground transition-colors"
+                  title="Toggle Chat History Sidebar"
+                >
+                  <History className="w-4 h-4" />
+                </button>
+
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shadow-md">
+                  <Sparkles className="w-4 h-4 text-primary-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-primary-foreground text-sm">CodeNex AI Mentor</h3>
-                  <p className="text-[10px] text-primary-foreground/70">DSA • Aptitude • English • Interview Prep</p>
+                  <h3 className="font-bold text-primary-foreground text-sm flex items-center gap-1.5">
+                    CodeNex AI Assistant
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  </h3>
+                  <p className="text-[10px] text-primary-foreground/80">Coding • DSA • Aptitude • Interview Prep</p>
                 </div>
               </div>
-              {/* Topic pills */}
-              <div className="flex gap-1.5 mt-3">
-                {[
-                  { icon: Code2, label: "Coding" },
-                  { icon: Brain, label: "Aptitude" },
-                  { icon: BookOpen, label: "English" },
-                  { icon: Lightbulb, label: "Tips" },
-                ].map(t => (
-                  <span key={t.label} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full bg-white/15 text-primary-foreground">
-                    <t.icon className="w-3 h-3" />{t.label}
-                  </span>
-                ))}
+
+              <div className="flex items-center gap-1 text-primary-foreground">
+                <button
+                  onClick={handleExportChat}
+                  className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                  title="Export Chat (.md)"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                  title={isExpanded ? "Minimize Window" : "Maximize Window"}
+                >
+                  {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                </button>
+
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1.5 rounded hover:bg-white/10 transition-colors"
+                  title="Close Assistant"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 p-3 overflow-y-auto space-y-3">
-              {messages.map((msg, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                    msg.role === "user"
-                      ? "gradient-primary text-primary-foreground rounded-br-sm"
-                      : "bg-muted/60 text-foreground rounded-bl-sm"
-                  }`}>
-                    {msg.role === "user" ? (
-                      <div className="whitespace-pre-wrap">{msg.content}</div>
+            {/* BODY CONTAINER: SIDEBAR + CHAT VIEW */}
+            <div className="flex-1 flex overflow-hidden relative">
+              {/* CHAT HISTORY DRAWER / SIDEBAR */}
+              <AnimatePresence>
+                {showHistorySidebar && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 240, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    className="border-r border-border/50 bg-black/60 flex flex-col justify-between overflow-hidden flex-shrink-0 z-10"
+                  >
+                    <div className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-foreground">Conversations</span>
+                        <button
+                          onClick={handleNewChat}
+                          className="text-[11px] px-2.5 py-1 rounded-lg gradient-primary text-primary-foreground gap-1 flex items-center"
+                        >
+                          <Plus className="w-3 h-3" /> New
+                        </button>
+                      </div>
+
+                      {/* Search */}
+                      <div className="relative">
+                        <Search className="w-3 h-3 absolute left-2.5 top-2.5 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="Search history..."
+                          className="w-full bg-muted/40 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-2 space-y-1">
+                      {filteredSessions.length === 0 ? (
+                        <div className="text-center py-6 text-[11px] text-muted-foreground">
+                          No history found.
+                        </div>
+                      ) : (
+                        filteredSessions.map((s) => {
+                          const isActive = (s.id || s._id) === currentSessionId;
+                          return (
+                            <div
+                              key={s.id || s._id}
+                              onClick={() => loadSession(s.id || s._id)}
+                              className={`group flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition-all ${
+                                isActive
+                                  ? "bg-primary/20 text-foreground border border-primary/30 font-semibold"
+                                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                              }`}
+                            >
+                              <span className="truncate text-[11px]">{s.title || "Conversation"}</span>
+                              <button
+                                onClick={(e) => handleDeleteSession(s.id || s._id, e)}
+                                className="opacity-0 group-hover:opacity-100 hover:text-rose-400 transition-opacity p-0.5"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="p-2 border-t border-border/40 text-[10px] text-muted-foreground text-center">
+                      CodeNex AI History
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* MESSAGES & CHAT FEED */}
+              <div className="flex-1 flex flex-col overflow-hidden bg-card/10">
+                <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+                  {(messages || []).map((msg, idx) => {
+                    if (!msg) return null;
+                    return (
+                      <motion.div
+                        key={msg.id || idx}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex gap-2.5 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        {msg.role === "assistant" && (
+                          <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center flex-shrink-0 shadow-md">
+                            <Bot className="w-3.5 h-3.5 text-primary-foreground" />
+                          </div>
+                        )}
+
+                        <div
+                          className={`max-w-[86%] rounded-xl p-3 text-xs leading-relaxed space-y-1.5 relative group ${
+                            msg.role === "user"
+                              ? "gradient-primary text-primary-foreground rounded-br-none shadow-md"
+                              : "bg-black/60 border border-white/10 text-foreground rounded-bl-none shadow-sm"
+                          }`}
+                        >
+                          {/* Attachments list */}
+                          {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-1.5 border-b border-white/10 pb-1.5">
+                              {msg.attachments.map((att, aIdx) => (
+                                <span key={aIdx} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-black/40 border border-white/10 text-neon-cyan">
+                                  <FileCode className="w-3 h-3" /> {att.fileName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {msg.role === "user" ? (
+                            <div className="whitespace-pre-wrap font-sans text-xs">{msg.content}</div>
+                          ) : msg.isStreaming ? (
+                            <div>
+                              <MarkdownViewer content={typingText} />
+                              <span className="inline-block w-1.5 h-3.5 bg-neon-cyan animate-pulse ml-1" />
+                            </div>
+                          ) : (
+                            <div>
+                              <MarkdownViewer content={msg.content} />
+                              <div className="mt-2 pt-1.5 border-t border-white/10 flex justify-end">
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                    setCopiedMsgId(msg.id || `${idx}`);
+                                    toast.success("Response copied!");
+                                    setTimeout(() => setCopiedMsgId(null), 2000);
+                                  }}
+                                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded bg-white/5"
+                                >
+                                  {copiedMsgId === (msg.id || `${idx}`) ? (
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                  {copiedMsgId === (msg.id || `${idx}`) ? "Copied" : "Copy Response"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+
+                  {/* Thinking Indicator */}
+                  {loading && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-xs text-muted-foreground p-1">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" /> CodeNex AI is thinking...
+                    </motion.div>
+                  )}
+
+                  <div ref={endRef} />
+                </div>
+
+                {/* SUGGESTED PROMPTS */}
+                {(!messages || messages.length <= 2) && (
+                  <div className="px-3 pb-2 flex flex-wrap gap-1.5">
+                    {getCurrentProblemContext() ? (
+                      <>
+                        <button
+                          onClick={() => send("Give me a hint for this problem")}
+                          className="text-[10px] px-2.5 py-1 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20 transition-colors"
+                        >
+                          💡 Get a Hint
+                        </button>
+                        <button
+                          onClick={() => send("Explain the dry run walkthrough")}
+                          className="text-[10px] px-2.5 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors"
+                        >
+                          🔄 Dry Run
+                        </button>
+                        <button
+                          onClick={() => send("What is the optimal complexity?")}
+                          className="text-[10px] px-2.5 py-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                        >
+                          ⏱️ Complexity
+                        </button>
+                      </>
                     ) : (
-                      <Markdown content={msg.content} />
+                      quickPrompts.map((qp, qIdx) => (
+                        <button
+                          key={qIdx}
+                          onClick={() => send(qp.prompt)}
+                          className="text-[10px] px-2.5 py-1 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+                        >
+                          {qp.label}
+                        </button>
+                      ))
                     )}
                   </div>
-                </motion.div>
-              ))}
-              {loading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-2 items-center text-muted-foreground text-xs p-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Thinking...
-                </motion.div>
-              )}
-              <div ref={endRef} />
-            </div>
-
-            {/* Quick Replies */}
-            {messages.length <= 2 && (
-              <div className="px-3 pb-2 flex flex-wrap gap-1.5">
-                {getCurrentProblemContext() ? (
-                  <>
-                    <button
-                      onClick={() => send("Give me a hint")}
-                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 hover:bg-yellow-500/20 hover:border-yellow-500/50 transition-colors cursor-pointer"
-                    >
-                      💡 Get a Hint
-                    </button>
-                    <button
-                      onClick={() => send("Explain the dry run walkthrough")}
-                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 hover:border-purple-500/50 transition-colors cursor-pointer"
-                    >
-                      🔄 Dry Run
-                    </button>
-                    <button
-                      onClick={() => send("What is the optimal complexity?")}
-                      className="text-[10px] px-2.5 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/50 transition-colors cursor-pointer"
-                    >
-                      ⏱️ Complexity
-                    </button>
-                  </>
-                ) : (
-                  quickReplies.map(qr => (
-                    <button
-                      key={qr}
-                      onClick={() => send(qr)}
-                      className="text-[11px] px-2.5 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors cursor-pointer"
-                    >
-                      {qr}
-                    </button>
-                  ))
                 )}
-              </div>
-            )}
 
-            {/* Input */}
-            <div className="p-3 border-t border-border flex gap-2">
-              <input
-                type="text"
-                placeholder="Ask any doubt..."
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && send(input)}
-                className="flex-1 bg-muted rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => send(input)}
-                disabled={loading || !input.trim()}
-                className="w-10 h-10 rounded-lg gradient-primary flex items-center justify-center disabled:opacity-40"
-              >
-                <Send className="w-4 h-4 text-primary-foreground" />
-              </motion.button>
+                {/* ATTACHMENTS PREVIEW BAR */}
+                {attachments && attachments.length > 0 && (
+                  <div className="px-3 py-1.5 border-t border-border/40 bg-black/40 flex flex-wrap gap-1.5">
+                    {attachments.map((att, idx) => (
+                      <span key={idx} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan">
+                        <FileText className="w-3 h-3" />
+                        {att.fileName}
+                        <X onClick={() => setAttachments((prev) => (prev || []).filter((_, i) => i !== idx))} className="w-3 h-3 cursor-pointer hover:text-rose-400" />
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* INPUT BAR */}
+                <div className="p-3 border-t border-border/50 bg-black/40 flex items-center gap-2 flex-shrink-0">
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".txt,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.json,.md,.html,.css" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-muted-foreground hover:text-foreground flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-white/5 transition-colors"
+                    title="Attach file for analysis"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleSpeechInput}
+                    className={`flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center hover:bg-white/5 transition-colors ${recording ? "text-rose-400 animate-pulse" : "text-muted-foreground hover:text-foreground"}`}
+                    title="Voice input"
+                  >
+                    {recording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && send()}
+                    placeholder="Ask CodeNex AI any doubt or attach files..."
+                    className="flex-1 bg-muted/40 rounded-xl px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary border border-border/40"
+                  />
+
+                  <button
+                    onClick={() => send()}
+                    disabled={loading || (!input.trim() && (!attachments || attachments.length === 0))}
+                    className="gradient-primary text-primary-foreground rounded-xl px-3.5 h-8 flex-shrink-0 gap-1 flex items-center disabled:opacity-50"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </>
+  );
+};
+
+const AIChatButton = () => {
+  return (
+    <ChatErrorBoundary>
+      <AIChatContent />
+    </ChatErrorBoundary>
   );
 };
 

@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   User, Lock, Bell, Shield, Palette, LogOut, BookOpen, Calendar, BarChart3, Settings2, Users, UserCog
 } from "lucide-react";
+import LeetCodeConnectCard from "@/components/shared/LeetCodeConnectCard";
 
 const Settings = () => {
   const { user, setUser, logout } = useUser();
@@ -78,6 +79,8 @@ const Settings = () => {
               <Button onClick={handleSaveProfile}>Save Changes</Button>
             </CardContent>
           </Card>
+
+          <LeetCodeConnectCard />
 
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>

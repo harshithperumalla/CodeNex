@@ -34,6 +34,9 @@ export interface UserProfile {
   linkedin: string;
   portfolio: string;
   profileImageUrl?: string;
+  leetcodeUsername?: string;
+  isLeetCodeConnected?: boolean;
+  leetcodeLastSyncedAt?: string;
 }
 
 const emptyUser: UserProfile = {

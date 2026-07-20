@@ -53,17 +53,17 @@ const AdminSidebar = () => {
               key={item.to}
               href={item.to}
               onClick={(e) => handleClick(e, item.to, item.label)}
-              className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg transition-all group cursor-pointer"
+              className="relative flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-xl transition-all group cursor-pointer overflow-hidden"
             >
               {isActive && (
                 <motion.div
                   layoutId="admin-sidebar-active"
-                  className="absolute inset-0 rounded-lg gradient-accent opacity-20"
+                  className="absolute inset-0 rounded-xl gradient-accent opacity-20 z-0 pointer-events-none"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
-              <item.icon className={`w-5 h-5 transition-colors ${isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground'}`} />
-              <span className={`hidden lg:block text-sm font-medium transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground'}`}>
+              <item.icon className={`w-5 h-5 relative z-10 shrink-0 transition-colors ${isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground'}`} />
+              <span className={`hidden lg:block relative z-10 text-sm font-medium whitespace-nowrap transition-colors ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground group-hover:text-foreground'}`}>
                 {item.label}
               </span>
             </a>

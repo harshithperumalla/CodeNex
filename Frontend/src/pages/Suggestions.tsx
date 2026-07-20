@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { MessageSquare, ThumbsUp, Send, Lightbulb } from "lucide-react";
-import { useState } from "react";
+import { MessageSquare, ThumbsUp, Send, Lightbulb, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import GlassCard from "@/components/shared/GlassCard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,10 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import api from "@/services/api";
 
 interface Suggestion {
-  id: number;
+  id: string;
+  _id?: string;
   user: string;
   title: string;
   description: string;
@@ -35,65 +37,91 @@ interface Suggestion {
   voted: boolean;
 }
 
-const initialSuggestions: Suggestion[] = [
-  { id: 1, user: "Rahul Sharma", title: "Add dark mode toggle on mobile", description: "The mobile app doesn't have an easy way to switch between light and dark mode.", votes: 87, status: "in-progress", category: "UI/UX", date: "2025-02-20", voted: false },
-  { id: 2, user: "Priya Patel", title: "Live coding collaboration feature", description: "Pair programming sessions where two students can code together in real-time.", votes: 124, status: "planned", category: "Feature", date: "2025-02-18", voted: false },
-  { id: 3, user: "Vikram Singh", title: "Certificate verification via QR code", description: "Add QR codes to course completion certificates so employers can verify them.", votes: 65, status: "completed", category: "Feature", date: "2025-02-15", voted: false },
-  { id: 4, user: "Sneha Reddy", title: "Weekly progress email digest", description: "Send a weekly summary email showing coding streak, problems solved, and areas to improve.", votes: 42, status: "review", category: "Communication", date: "2025-02-22", voted: false },
-  { id: 5, user: "Amit Kumar", title: "Offline mode for video courses", description: "Allow students to download course videos for offline viewing.", votes: 156, status: "planned", category: "Feature", date: "2025-02-10", voted: false },
-  { id: 6, user: "Ananya Gupta", title: "Mentor matching algorithm", description: "Auto-match students with mentors based on learning goals and skill level.", votes: 93, status: "review", category: "AI/ML", date: "2025-02-19", voted: false },
-];
-
 const statusConfig: Record<string, string> = {
-  planned: "bg-accent/20 text-accent border-accent/30",
-  "in-progress": "bg-primary/20 text-primary border-primary/30",
-  review: "bg-secondary/20 text-secondary-foreground border-secondary/30",
-  completed: "bg-primary/20 text-primary border-primary/30",
+  planned: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  "in-progress": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  review: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
 };
 
 const filters = ["All", "Planned", "In-Progress", "Review", "Completed"];
 
 const Suggestions = () => {
-  const [suggestions, setSuggestions] = useState<Suggestion[]>(initialSuggestions);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [activeFilter, setActiveFilter] = useState("All");
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newCategory, setNewCategory] = useState("");
-  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
 
-  const filtered = activeFilter === "All" ? suggestions : suggestions.filter((s) => s.status === activeFilter.toLowerCase());
-  const maxVotes = Math.max(...suggestions.map((s) => s.votes));
-
-  const handleVote = (id: number) => {
-    setSuggestions((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, votes: s.voted ? s.votes - 1 : s.votes + 1, voted: !s.voted }
-          : s
-      )
-    );
+  const fetchSuggestions = async () => {
+    try {
+      const res = await api.get("/suggestions");
+      if (res.data.success && Array.isArray(res.data.suggestions)) {
+        setSuggestions(res.data.suggestions);
+      } else {
+        setSuggestions([]);
+      }
+    } catch (err) {
+      console.error("Error loading suggestions:", err);
+      setSuggestions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    fetchSuggestions();
+  }, []);
+
+  const filtered = activeFilter === "All"
+    ? suggestions
+    : suggestions.filter((s) => s.status.toLowerCase() === activeFilter.toLowerCase());
+
+  const maxVotes = Math.max(...suggestions.map((s) => s.votes), 1);
+
+  const handleVote = async (id: string) => {
+    try {
+      const res = await api.post(`/suggestions/${id}/vote`);
+      if (res.data.success) {
+        setSuggestions((prev) =>
+          prev.map((s) =>
+            s.id === id
+              ? { ...s, votes: res.data.votes, voted: res.data.voted }
+              : s
+          )
+        );
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Please log in to vote.");
+    }
+  };
+
+  const handleSubmit = async () => {
     if (!newTitle.trim() || !newDesc.trim() || !newCategory) return;
-    const newSuggestion: Suggestion = {
-      id: Date.now(),
-      user: "You",
-      title: newTitle,
-      description: newDesc,
-      votes: 1,
-      status: "review",
-      category: newCategory,
-      date: new Date().toISOString().split("T")[0],
-      voted: true,
-    };
-    setSuggestions((prev) => [newSuggestion, ...prev]);
-    setNewTitle("");
-    setNewDesc("");
-    setNewCategory("");
-    setDialogOpen(false);
-    toast({ title: "Suggestion submitted!", description: "Your idea is now under review." });
+    setSubmitting(true);
+    try {
+      const res = await api.post("/suggestions", {
+        title: newTitle.trim(),
+        description: newDesc.trim(),
+        category: newCategory,
+      });
+
+      if (res.data.success && res.data.suggestion) {
+        setSuggestions((prev) => [res.data.suggestion, ...prev]);
+        setNewTitle("");
+        setNewDesc("");
+        setNewCategory("");
+        setDialogOpen(false);
+        toast.success("Suggestion submitted successfully!");
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to submit suggestion.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -101,13 +129,13 @@ const Suggestions = () => {
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold">
-            <span className="gradient-text">Suggestions</span>
+            <span className="gradient-text">Community Suggestions</span>
           </h1>
-          <p className="text-sm text-muted-foreground">Vote on ideas or submit your own</p>
+          <p className="text-sm text-muted-foreground">Vote on real feature requests or submit your own idea</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 gradient-primary text-primary-foreground">
               <Lightbulb className="w-4 h-4" />
               Submit Idea
             </Button>
@@ -118,19 +146,21 @@ const Suggestions = () => {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <Input placeholder="Suggestion title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-              <Textarea placeholder="Describe your idea..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} />
+              <Textarea placeholder="Describe your idea in detail..." value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={3} />
               <Select value={newCategory} onValueChange={setNewCategory}>
-                <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select Category" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Feature">Feature</SelectItem>
-                  <SelectItem value="UI/UX">UI/UX</SelectItem>
-                  <SelectItem value="Communication">Communication</SelectItem>
-                  <SelectItem value="AI/ML">AI/ML</SelectItem>
+                  <SelectItem value="Feature">Feature Request</SelectItem>
+                  <SelectItem value="UI/UX">UI / UX Improvement</SelectItem>
+                  <SelectItem value="DSA/Coding">DSA & Coding</SelectItem>
+                  <SelectItem value="English">English Module</SelectItem>
+                  <SelectItem value="AI/ML">AI Assistance</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              <Button onClick={handleSubmit} className="w-full gap-2" disabled={!newTitle.trim() || !newDesc.trim() || !newCategory}>
-                <Send className="w-4 h-4" /> Submit
+              <Button onClick={handleSubmit} className="w-full gap-2 gradient-primary" disabled={submitting || !newTitle.trim() || !newDesc.trim() || !newCategory}>
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {submitting ? "Submitting..." : "Submit Suggestion"}
               </Button>
             </div>
           </DialogContent>
@@ -147,43 +177,57 @@ const Suggestions = () => {
       </div>
 
       {/* List */}
-      <div className="space-y-3">
-        {filtered.map((s, i) => {
-          const votePercent = Math.round((s.votes / maxVotes) * 100);
-          return (
-            <motion.div key={s.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <GlassCard className="p-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex flex-col items-center gap-1 shrink-0">
-                    <Button variant="ghost" size="sm" className={`h-8 w-8 p-0 ${s.voted ? "text-primary" : "text-muted-foreground"}`} onClick={() => handleVote(s.id)}>
-                      <ThumbsUp className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm font-bold text-foreground">{s.votes}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-sm text-foreground">{s.title}</h3>
-                      <Badge variant="outline" className={statusConfig[s.status] || statusConfig.planned}>{s.status}</Badge>
-                      <Badge variant="outline" className="text-xs">{s.category}</Badge>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((s, i) => {
+            const votePercent = Math.round((s.votes / maxVotes) * 100);
+            return (
+              <motion.div key={s.id || s._id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                <GlassCard className="p-4">
+                  <div className="flex items-start gap-4">
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-8 w-8 p-0 ${s.voted ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-white/5"}`}
+                        onClick={() => handleVote(s.id || s._id || "")}
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                      </Button>
+                      <span className="text-sm font-bold text-foreground">{s.votes}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">by {s.user} • {s.date}</p>
-                    <p className="text-sm text-foreground/80 mt-2">{s.description}</p>
-                    <div className="mt-3">
-                      <Progress value={votePercent} className="h-1.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-sm text-foreground">{s.title}</h3>
+                        <Badge variant="outline" className={statusConfig[s.status] || statusConfig.review}>{s.status}</Badge>
+                        <Badge variant="outline" className="text-xs">{s.category}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">by {s.user} {s.date ? `• ${s.date}` : ""}</p>
+                      <p className="text-sm text-foreground/80 mt-2 leading-relaxed">{s.description}</p>
+                      <div className="mt-3">
+                        <Progress value={votePercent} className="h-1.5" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <GlassCard className="p-8 text-center">
-            <MessageSquare className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground text-sm">No suggestions in this category yet.</p>
-          </GlassCard>
-        )}
-      </div>
+                </GlassCard>
+              </motion.div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <GlassCard className="p-10 text-center space-y-2">
+              <MessageSquare className="w-10 h-10 text-muted-foreground mx-auto" />
+              <h3 className="font-semibold text-foreground text-sm">No suggestions found</h3>
+              <p className="text-muted-foreground text-xs max-w-sm mx-auto">
+                No user suggestions submitted yet. Click "Submit Idea" above to share your feedback or feature request with the community!
+              </p>
+            </GlassCard>
+          )}
+        </div>
+      )}
     </div>
   );
 };

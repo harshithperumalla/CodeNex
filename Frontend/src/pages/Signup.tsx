@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { User, Mail, Phone, Lock, UserPlus, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/services/api";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 const Signup = () => {
   const [fullName, setFullName] = useState("");
@@ -198,6 +199,17 @@ const Signup = () => {
                 {loading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border/40" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton />
 
             <p className="text-center text-sm text-muted-foreground mt-6">
               Already have an account?{" "}

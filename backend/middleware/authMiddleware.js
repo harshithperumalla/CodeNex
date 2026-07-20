@@ -29,4 +29,26 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader?.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+
+    if (token) {
+      const decoded = jwt.verify(token, secret);
+      const user = await User.findById(decoded.id).select("-password");
+      if (user && user.isActive) {
+        req.user = user;
+      }
+    }
+  } catch {
+    // Ignore token errors for optional protection
+  }
+  next();
+};
+
+module.exports = { protect, optionalProtect };

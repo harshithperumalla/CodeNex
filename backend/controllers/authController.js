@@ -200,10 +200,105 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const googleAuth = async (req, res) => {
+  try {
+    const { credential, email, name, picture, portalRole } = req.body;
+
+    let userEmail = email;
+    let userName = name;
+    let userPicture = picture;
+
+    // Decode JWT credential if sent directly from Google GSI
+    if (credential) {
+      try {
+        const base64Url = credential.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        const payload = JSON.parse(jsonPayload);
+        userEmail = payload.email || userEmail;
+        userName = payload.name || payload.given_name || userName;
+        userPicture = payload.picture || userPicture;
+      } catch (e) {
+        console.warn("Could not parse Google ID token payload:", e);
+      }
+    }
+
+    if (!userEmail) {
+      return res.status(400).json({ success: false, message: "Invalid Google account data" });
+    }
+
+    const cleanEmail = userEmail.toLowerCase().trim();
+    let user = await User.findOne({ email: cleanEmail });
+
+    const targetRole = portalRole === "user" ? "student" : (portalRole || "student");
+
+    // SECURITY: Reject unknown Google accounts attempting to access Admin or Mentor portals
+    if (targetRole === "admin" || targetRole === "mentor") {
+      if (!user) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. No ${targetRole} account found for this Google email.`,
+        });
+      }
+
+      const actualRole = user.role === "user" ? "student" : user.role;
+      if (actualRole !== targetRole) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. This email is registered as a ${actualRole}, not a ${targetRole}.`,
+        });
+      }
+    }
+
+    // SECURITY: Ensure admins/mentors logging in from student portal are redirected to their respective portals
+    if (targetRole === "student" && user) {
+      const actualRole = user.role === "user" ? "student" : user.role;
+      if (actualRole !== "student") {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. This portal is for student accounts. Please sign in via the ${actualRole.charAt(0).toUpperCase() + actualRole.slice(1)} Portal.`,
+        });
+      }
+    }
+
+    // Create new account ONLY if accessed via Student portal
+    if (!user) {
+      const randomPassword = crypto.randomBytes(16).toString("hex");
+      user = await User.create({
+        fullName: userName || cleanEmail.split("@")[0],
+        email: cleanEmail,
+        password: randomPassword,
+        role: "user", // ALWAYS Student for public signups
+        avatar: userPicture || "",
+        profileImageUrl: userPicture || "",
+      });
+    } else if (userPicture && !user.avatar) {
+      user.avatar = userPicture;
+      await user.save();
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ success: false, message: "Your account has been deactivated" });
+    }
+
+    const token = generateToken(user._id, user.role);
+    res.json(formatAuthResponse(user, token));
+  } catch (err) {
+    console.error("Google Auth error:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   signup,
   login,
   getMe,
   forgotPassword,
   resetPassword,
+  googleAuth,
 };

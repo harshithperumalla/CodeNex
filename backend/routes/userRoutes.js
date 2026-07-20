@@ -12,6 +12,9 @@ const {
   attendSession,
   getMentors,
   bookSession,
+  connectLeetCode,
+  disconnectLeetCode,
+  syncLeetCode,
 } = require("../controllers/userController");
 const { protect } = require("../middleware/authMiddleware");
 
@@ -26,5 +29,8 @@ router.get("/sessions", protect, getSessions);
 router.post("/sessions/:id/attend", protect, attendSession);
 router.get("/mentors", protect, getMentors);
 router.post("/sessions/book", protect, bookSession);
+router.post("/leetcode-connect", protect, connectLeetCode);
+router.post("/leetcode-disconnect", protect, disconnectLeetCode);
+router.post("/leetcode-sync", protect, syncLeetCode);
 
 module.exports = router;

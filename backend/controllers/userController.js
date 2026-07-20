@@ -368,23 +368,22 @@ exports.attendSession = async (req, res) => {
 exports.getMentors = async (req, res) => {
   try {
     const mentors = await User.find({ role: "mentor" }).select(
-      "fullName email phone skills badgesEarned about avatar college degree yearOfStudy"
+      "fullName name email phone skills badgesEarned about avatar profileImageUrl college degree yearOfStudy"
     );
 
     const mappedMentors = mentors.map((m) => {
-      const skills = m.skills && m.skills.length ? m.skills : ["React", "Node.js", "DSA", "System Design"];
       return {
         _id: m._id,
-        fullName: m.fullName,
+        fullName: m.fullName || m.name,
         email: m.email,
-        phone: m.phone,
-        skills: skills,
-        badgesEarned: m.badgesEarned,
-        about: m.about || "Senior Developer & DSA Instructor at CodeNex.",
-        avatar: m.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${m.fullName}`,
-        college: m.college || "IIT Bombay",
-        degree: m.degree || "M.Tech CSE",
-        yearOfStudy: m.yearOfStudy || "Alumnus"
+        phone: m.phone || "",
+        skills: m.skills && m.skills.length > 0 ? m.skills : [],
+        badgesEarned: m.badgesEarned || [],
+        about: m.about || "",
+        avatar: m.profileImageUrl || m.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(m.fullName || "Mentor")}`,
+        college: m.college || "",
+        degree: m.degree || "",
+        yearOfStudy: m.yearOfStudy || ""
       };
     });
 
@@ -424,6 +423,62 @@ exports.bookSession = async (req, res) => {
       message: "Session booked successfully!",
       session,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.connectLeetCode = async (req, res) => {
+  try {
+    const { username } = req.body;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ success: false, message: "LeetCode username is required." });
+    }
+
+    const { syncUserLeetCodeProgress } = require("../services/leetcodeService");
+    const cleanHandle = username.trim();
+    const user = await User.findById(req.user._id);
+
+    user.leetcodeUsername = cleanHandle;
+    user.isLeetCodeConnected = true;
+    await user.save();
+
+    const syncResult = await syncUserLeetCodeProgress(user);
+
+    res.json({
+      success: true,
+      message: `Successfully connected LeetCode account @${cleanHandle}!`,
+      user: syncResult.user || user.toPublicProfile(),
+      syncResult,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.disconnectLeetCode = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    user.leetcodeUsername = "";
+    user.isLeetCodeConnected = false;
+    user.leetcodeLastSyncedAt = null;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "LeetCode account disconnected successfully.",
+      user: user.toPublicProfile(),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.syncLeetCode = async (req, res) => {
+  try {
+    const { syncUserLeetCodeProgress } = require("../services/leetcodeService");
+    const syncResult = await syncUserLeetCodeProgress(req.user._id);
+    res.json(syncResult);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
