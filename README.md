@@ -1,6 +1,6 @@
 # 🚀 CodeNex – AI Powered Placement Preparation Platform
 
-![Status](https://img.shields.io/badge/Status-Under%20Development-orange)
+![Status](https://img.shields.io/badge/Status-Active%20Development-orange)
 ![Version](https://img.shields.io/badge/Version-2.0-blue)
 ![Frontend](https://img.shields.io/badge/Frontend-React.js-61DAFB)
 ![Backend](https://img.shields.io/badge/Backend-Node.js-339933)
@@ -11,24 +11,39 @@
 
 # 📖 Project Overview
 
-**CodeNex** is an AI-powered Placement Preparation Platform developed to help students prepare for campus placements through a single learning platform.
+**CodeNex** is an AI-powered Placement Preparation Platform designed to help students prepare for campus placements through a single integrated learning platform.
 
-The platform combines Coding Practice, Aptitude Learning, AI Assistance, Learning Courses, Mock Interviews, Mentor Guidance, Progress Tracking, Company-wise Questions, Meetings, and Performance Analytics into one modern application.
+It combines Coding Practice, Aptitude Learning, AI Assistance, Courses, Mock Interviews, Mentor Guidance, Progress Tracking, Company-wise Questions, Meetings, and Analytics to improve placement readiness.
 
-Students can learn concepts, practice coding, attend mentor sessions, complete quizzes, track their progress, and improve their placement readiness.
+---
+
+# 🌐 Live Demo
+
+### 🚀 Frontend
+
+https://code-nex-weld.vercel.app/
+
+### 🚀 Backend API
+
+https://codenex-backend-k2fr.onrender.com/
+
+> **Note**
+>
+> CodeNex is currently under active development.
+> Some advanced AI features and integrations are still being improved.
 
 ---
 
 # 🎯 Project Objectives
 
-- Improve coding skills.
-- Improve aptitude skills.
-- Learn company interview patterns.
-- Track placement preparation.
-- Connect students with mentors.
-- Monitor student performance.
-- Provide AI-powered learning assistance.
-- Build an all-in-one placement preparation platform.
+- Improve Coding Skills
+- Improve Aptitude Skills
+- Learn Company Interview Patterns
+- AI Guided Learning
+- Mentor Support
+- Placement Preparation
+- Progress Tracking
+- Performance Analytics
 
 ---
 
@@ -40,8 +55,8 @@ Students can learn concepts, practice coding, attend mentor sessions, complete q
 - JWT Authentication
 - Email Verification
 - Forgot Password
-- Profile Management
 - Dashboard
+- Profile Management
 - Daily Streak
 - Leaderboard
 - AI Assistant
@@ -54,14 +69,11 @@ Students can learn concepts, practice coding, attend mentor sessions, complete q
 
 ## 💻 Coding Module
 
-Professional coding platform with:
-
-- Monaco Editor (VS Code Editor)
+- Monaco Editor
 - Online Compiler
 - Run Code
-- Submit Code
+- Submit Solution
 - Output Console
-- Custom Input
 - Hidden Test Cases
 - Sample Test Cases
 - Execution Time
@@ -75,74 +87,29 @@ Professional coding platform with:
 - Python
 - JavaScript
 
-### Coding Questions
-
-1000+ Questions categorized by:
-
-### Companies
-
-- TCS
-- Infosys
-- Wipro
-- Accenture
-- Cognizant
-- Capgemini
-- Deloitte
-- IBM
-- Tech Mahindra
-- HCL
-- LTIMindtree
-- Oracle
-- SAP
-- Zoho
-- Amazon
-- Microsoft
-- Google
-- Meta
-- Apple
-- Adobe
-- Flipkart
-- Walmart
-- PayPal
-- Visa
-- Goldman Sachs
-- Morgan Stanley
-- Qualcomm
-- Nvidia
-- Samsung
-- Cisco
-- Uber
-- Netflix
-
-### Topics
+### Coding Topics
 
 - Arrays
 - Strings
-- Matrix
 - Linked List
 - Stack
 - Queue
-- Hashing
 - Trees
-- Binary Trees
 - BST
 - Heap
 - Trie
 - Graph
-- Dynamic Programming
-- Greedy
-- Recursion
-- Backtracking
-- Sliding Window
-- Two Pointer
-- Prefix Sum
-- Binary Search
-- Bit Manipulation
-- Segment Tree
-- Union Find
 - BFS
 - DFS
-- Topological Sort
+- Dynamic Programming
+- Greedy
+- Sliding Window
+- Binary Search
+- Bit Manipulation
+- Backtracking
+- Prefix Sum
+- Union Find
+- Segment Tree
 - Number Theory
 - Geometry
 - Math
@@ -159,46 +126,30 @@ Difficulty Levels
 
 # 🧠 Aptitude Learning
 
-Unlike traditional quiz applications, CodeNex provides complete learning material before quizzes.
+Includes complete learning material before quizzes.
 
-Every topic contains:
-
-- Complete Theory
-- Beginner Friendly Explanation
-- Real-Time Examples
-- Solved Examples
-- Practice Questions
-- Important Formulas
-- Shortcuts
+- Theory
+- Examples
+- Practice Problems
+- Formulas
 - Tricks
 - Interview Tips
 - Quiz
 
-Topics Covered
+### Topics
 
 ### Arithmetic
 
 - Number System
-- Simplification
-- LCM & HCF
 - Percentage
 - Profit & Loss
-- Discount
 - Ratio
-- Proportion
 - Average
-- Partnership
-- Mixtures
-- Ages
 - Time & Work
-- Pipes & Cisterns
 - Time Speed Distance
-- Boats & Streams
-- Trains
 - Probability
 - Permutation & Combination
-- Simple Interest
-- Compound Interest
+- Interest
 - Mensuration
 
 ### Logical Reasoning
@@ -209,41 +160,34 @@ Topics Covered
 - Puzzle
 - Calendar
 - Clock
-- Cube
-- Dice
-- Direction Sense
 - Ranking
 - Syllogism
-- Statement & Assumption
 - Statement & Conclusion
 
 ### Verbal Ability
 
 - Reading Comprehension
 - Vocabulary
+- Idioms
 - Synonyms
 - Antonyms
-- Idioms
-- One Word Substitution
 - Error Detection
 - Sentence Improvement
-- Fill in the Blanks
 - Para Jumbles
 
 ### Data Interpretation
 
 - Tables
 - Pie Charts
-- Line Graphs
 - Bar Graphs
-- Mixed Graphs
+- Line Graphs
 
 ---
 
 # 📚 Course Module
 
 - Video Courses
-- PDF Notes
+- Notes
 - Assignments
 - Practice Problems
 - Download Resources
@@ -259,8 +203,6 @@ Topics Covered
 - Meeting Scheduling
 - Attendance
 - Assignment Review
-- Coding Progress
-- Aptitude Progress
 - Analytics
 - Notifications
 
@@ -272,41 +214,29 @@ Topics Covered
 - User Management
 - Mentor Management
 - Course Management
-- Coding Question Management
+- Coding Questions
 - Aptitude Management
 - Meeting Management
 - Reports
 - Analytics
 - Notifications
 - Badge Management
-- Platform Settings
 
 ---
 
 # 🏅 Dynamic Badge System
 
-Badges are earned automatically based on achievements.
-
-Examples:
+Examples
 
 - First Login
 - First Coding Problem
-- First Quiz Completed
-- First Course Completed
+- First Quiz
+- Course Completion
 - 10 Problems Solved
-- 25 Problems Solved
-- 50 Problems Solved
 - 100 Problems Solved
 - 500 Problems Solved
-- 1000 Problems Solved
-- Aptitude Beginner
-- Aptitude Expert
-- 7-Day Streak
-- 15-Day Streak
-- 30-Day Streak
-- 100-Day Streak
-- Mentor Session Completed
-- Course Completion
+- Daily Streak
+- Mentor Session
 - Placement Ready
 
 ---
@@ -316,21 +246,20 @@ Examples:
 - AI Placement Assistant
 - AI Coding Assistant
 - AI Aptitude Assistant
-- AI Learning Recommendations
 - Resume Suggestions
-- Interview Preparation Guidance
+- Interview Preparation
+- Personalized Learning Recommendations
 
 ---
 
 # 📅 Meeting Module
 
-- Schedule Meetings
+- Meeting Scheduler
+- Calendar
 - Join Meetings
-- Meeting Calendar
-- Mentor Availability
 - Meeting History
 - Notifications
-- Meeting Notes
+- Notes
 - Attendance
 
 ---
@@ -341,10 +270,9 @@ Track
 
 - Coding Progress
 - Aptitude Progress
-- Courses Completed
-- Meetings Attended
+- Courses
+- Meetings
 - Certificates
-- Points
 - Rank
 - Daily Streak
 - Badges
@@ -378,7 +306,7 @@ Track
 
 - MongoDB Atlas
 
-## APIs & Services
+## APIs
 
 - Judge0 API
 - Cloudinary
@@ -392,23 +320,22 @@ Track
 
 ```text
 CodeNex/
-│
-├── Frontend/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│
-├── backend/
-│   ├── controllers/
-│   ├── models/
-│   ├── middleware/
-│   ├── routes/
-│   ├── utils/
-│   ├── config/
-│   ├── server.js
-│
-├── README.md
-└── .gitignore
+
+Frontend/
+ ├── src/
+ ├── public/
+ └── package.json
+
+backend/
+ ├── controllers/
+ ├── models/
+ ├── middleware/
+ ├── routes/
+ ├── utils/
+ ├── config/
+ └── server.js
+
+README.md
 ```
 
 ---
@@ -418,11 +345,14 @@ CodeNex/
 Clone Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/harshithperumalla/CodeNex.git
+```
+
+```bash
 cd CodeNex
 ```
 
-Frontend
+### Frontend
 
 ```bash
 cd Frontend
@@ -430,7 +360,7 @@ npm install
 npm run dev
 ```
 
-Backend
+### Backend
 
 ```bash
 cd backend
@@ -463,7 +393,7 @@ RAZORPAY_KEY_ID=
 
 RAZORPAY_KEY_SECRET=
 
-FRONTEND_URL=http://localhost:8080
+FRONTEND_URL=http://localhost:5173
 ```
 
 ---
@@ -471,13 +401,12 @@ FRONTEND_URL=http://localhost:8080
 # 🚀 Upcoming Features
 
 - AI Mock Interviews
-- Voice Interview Practice
+- Voice Interview
 - Resume Analyzer
 - Live Coding Contests
 - Company Hiring Updates
 - AI Career Guidance
-- Mobile Application
-- Real-time Collaboration
+- Mobile App
 - Placement Prediction
 - Personalized Learning Roadmap
 
@@ -485,82 +414,83 @@ FRONTEND_URL=http://localhost:8080
 
 # 🚧 Project Status
 
-> **⚠️ This project is currently under active development.**
+**CodeNex is actively being developed.**
 
-The project is continuously being improved with new features, performance enhancements, bug fixes, and UI improvements.
+Current improvements include:
 
-### Features Currently in Development
-
-- Online Compiler Optimization
-- 1000+ Coding Questions
-- Advanced Aptitude Learning
-- AI Coding Assistant
-- AI Mock Interview
-- Dynamic Badge System
-- Meeting Improvements
-- Analytics Dashboard
-- Performance Optimization
+- AI Assistant
+- Compiler Optimization
+- Coding Questions
+- Aptitude Modules
+- Analytics
+- Performance Improvements
+- UI/UX Enhancements
+- Bug Fixes
 
 ---
 
 # 🌐 Deployment Status
 
-> 🚀 **Deployment Coming Soon...**
+| Service | Status |
+|----------|--------|
+| Frontend (Vercel) | ✅ Live |
+| Backend API (Render) | ✅ Live |
+| MongoDB Atlas | ✅ Connected |
+| Judge0 API | 🚧 Integration Improving |
+| AI Features | 🚧 Under Development |
 
-The production version is currently under development and testing.
+### Live Links
 
-A stable cloud deployment will be available soon.
+Frontend
 
-Stay tuned for future updates.
+https://code-nex-weld.vercel.app/
+
+Backend
+
+https://codenex-backend-k2fr.onrender.com/
 
 ---
 
 # 👨‍💻 Developers
 
-## Project Lead
-
-**Harshith Perumalla**
+## Harshith Perumalla
 
 - Full Stack Developer
-- Frontend Development
-- Backend Development
-- Database Design
 - AI Integration
+- Backend Development
+- Frontend Development
+- Database Design
 - Project Architecture
 
-## Contributor
-
-**Charan Cherry**
+## Charan Cherry
 
 - Full Stack Developer
 - Frontend Development
 - Backend Development
+- Testing
 - Feature Development
-- Testing & Bug Fixing
 
 ---
 
 # 🤝 Contributors
 
-Thanks to everyone who contributed to the development of **CodeNex**.
-
-- 👨‍💻 Harshith Perumalla — Project Lead
-- 👨‍💻 Charan Cherry — Contributor
+- Harshith Perumalla
+- Charan Cherry
 
 ---
 
 # ❤️ Support
 
-If you like this project, don't forget to ⭐ Star this repository.
+If you like this project, don't forget to ⭐ Star the repository.
 
 ---
 
 # 📄 License
 
-This project is licensed under the MIT License.
+Licensed under the MIT License.
 
 ---
 
-## © 2026 CodeNex – AI Powered Placement Preparation Platform
+## © 2026 CodeNex
 
-**Developed with ❤️ by Harshith Perumalla & Charan Cherry**
+Developed with ❤️ by **Harshith Perumalla** & **Charan Cherry**
